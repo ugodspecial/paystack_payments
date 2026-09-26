@@ -1,0 +1,8 @@
+[
+  {
+    "doctype": "Mode of Payment",
+    "mode_of_payment": "Paystack",
+    "type": "General",
+    "enabled": 1
+  }
+]

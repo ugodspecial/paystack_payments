@@ -1,0 +1,164 @@
+{
+  "name": "Paystack Dashboard",
+  "doctype": "Workspace",
+  "module": "Paystack Integration",
+  "label": "Paystack Dashboard",
+  "title": "Paystack Dashboard",
+  "icon": "octicon octicon-credit-card",
+  "color": "#00c3f7",
+  "is_standard": 1,
+  "hide_custom": 0,
+  "charts": [
+    {
+      "chart_name": "Paystack Daily Volume",
+      "label": "Daily Payment Volume"
+    }
+  ],
+  "shortcuts": [
+    {
+      "type": "DocType",
+      "label": "Gateway Settings",
+      "link_to": "Paystack Gateway Setting",
+      "icon": "setting"
+    },
+    {
+      "type": "DocType",
+      "label": "Payment Logs",
+      "link_to": "Paystack Payment Log",
+      "icon": "list"
+    },
+    {
+      "type": "DocType",
+      "label": "Settlements",
+      "link_to": "Paystack Settlement",
+      "icon": "bank"
+    },
+    {
+      "type": "DocType",
+      "label": "Refund Logs",
+      "link_to": "Paystack Refund Log",
+      "icon": "return"
+    },
+    {
+      "type": "Report",
+      "label": "Activity",
+      "link_to": "Paystack Activity",
+      "icon": "bar-chart"
+    },
+    {
+      "type": "Report",
+      "label": "Transactions",
+      "link_to": "Paystack Transactions",
+      "icon": "file-text"
+    },
+    {
+      "type": "Report",
+      "label": "Unsettled",
+      "link_to": "Paystack Unsettled Payments",
+      "icon": "alert"
+    },
+    {
+      "type": "Report",
+      "label": "Settlements vs Ledger",
+      "link_to": "Paystack Settlements vs Ledger",
+      "icon": "check"
+    }
+  ],
+  "links": [
+    {
+      "label": "Setup",
+      "type": "Card Break",
+      "icon": null
+    },
+    {
+      "label": "Paystack Gateway Setting",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Gateway Setting",
+      "onboard": 1
+    },
+    {
+      "label": "Mode of Payment",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Mode of Payment"
+    },
+    {
+      "label": "Transactions",
+      "type": "Card Break",
+      "icon": null
+    },
+    {
+      "label": "Paystack Payment Log",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Payment Log",
+      "onboard": 1
+    },
+    {
+      "label": "Paystack Refund Log",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Refund Log"
+    },
+    {
+      "label": "Paystack Reconciliation Log",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Reconciliation Log"
+    },
+    {
+      "label": "Settlement",
+      "type": "Card Break",
+      "icon": null
+    },
+    {
+      "label": "Paystack Settlement",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Settlement",
+      "onboard": 1
+    },
+    {
+      "label": "Paystack Customer Authorization",
+      "type": "Link",
+      "link_type": "DocType",
+      "link_to": "Paystack Customer Authorization"
+    },
+    {
+      "label": "Reports",
+      "type": "Card Break",
+      "icon": null
+    },
+    {
+      "label": "Paystack Activity",
+      "type": "Link",
+      "link_type": "Report",
+      "link_to": "Paystack Activity"
+    },
+    {
+      "label": "Paystack Transactions",
+      "type": "Link",
+      "link_type": "Report",
+      "link_to": "Paystack Transactions"
+    },
+    {
+      "label": "Paystack Unsettled Payments",
+      "type": "Link",
+      "link_type": "Report",
+      "link_to": "Paystack Unsettled Payments"
+    },
+    {
+      "label": "Customer Paystack Volume",
+      "type": "Link",
+      "link_type": "Report",
+      "link_to": "Customer Paystack Volume"
+    },
+    {
+      "label": "Paystack Settlements vs Ledger",
+      "type": "Link",
+      "link_type": "Report",
+      "link_to": "Paystack Settlements vs Ledger"
+    }
+  ]
+}

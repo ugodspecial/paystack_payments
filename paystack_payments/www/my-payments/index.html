@@ -1,0 +1,55 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ _("My Payments") }}{% endblock %}
+
+{% block page_content %}
+<div class="container mt-4">
+  <h3 class="mb-4">{{ _("My Payments") }}</h3>
+
+  {% if not payments %}
+  <div class="alert alert-info">{{ _("No payment records found for your account.") }}</div>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover">
+      <thead class="thead-light">
+        <tr>
+          <th>{{ _("Reference") }}</th>
+          <th>{{ _("Date") }}</th>
+          <th>{{ _("Amount") }}</th>
+          <th>{{ _("Status") }}</th>
+          <th>{{ _("Document") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td><small class="text-monospace">{{ p.name }}</small></td>
+          <td>{{ frappe.utils.format_datetime(p.payment_date) if p.payment_date else "—" }}</td>
+          <td>{{ p.currency }} {{ "{:,.2f}".format(p.amount or 0) }}</td>
+          <td>
+            {% set badge = {
+               "Completed": "success",
+               "Processed": "primary",
+               "Pending": "secondary",
+               "Failed": "danger",
+               "Partially Refunded": "warning",
+               "Refunded": "dark",
+               "Needs Attention": "danger"
+             }.get(p.status, "secondary") %}
+            <span class="badge badge-{{ badge }}">{{ p.status }}</span>
+          </td>
+          <td>
+            {% if p.reference_doctype and p.reference_name %}
+              {{ p.reference_doctype }}: {{ p.reference_name }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

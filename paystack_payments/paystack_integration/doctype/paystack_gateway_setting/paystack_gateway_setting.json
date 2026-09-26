@@ -1,0 +1,171 @@
+{
+  "name": "Paystack Gateway Setting",
+  "doctype": "DocType",
+  "module": "Paystack Integration",
+  "is_submittable": 0,
+  "is_single": 0,
+  "autoname": "field:gateway_name",
+  "title_field": "gateway_name",
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "section_identity",
+      "fieldtype": "Section Break",
+      "label": "Identity"
+    },
+    {
+      "fieldname": "gateway_name",
+      "fieldtype": "Data",
+      "label": "Gateway Name",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "enabled",
+      "fieldtype": "Check",
+      "label": "Enabled",
+      "default": "0",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "test_mode",
+      "fieldtype": "Check",
+      "label": "Test Mode",
+      "default": "1"
+    },
+    {
+      "fieldname": "col_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Currency",
+      "options": "Currency",
+      "reqd": 1
+    },
+    {
+      "fieldname": "checkout_mode",
+      "fieldtype": "Select",
+      "label": "Checkout Mode",
+      "options": "Inline\nHosted",
+      "default": "Inline"
+    },
+    {
+      "fieldname": "payment_link_validity_hours",
+      "fieldtype": "Int",
+      "label": "Payment Link Validity (Hours)",
+      "default": "0",
+      "description": "0 = never expires"
+    },
+    {
+      "fieldname": "section_keys",
+      "fieldtype": "Section Break",
+      "label": "API Keys"
+    },
+    {
+      "fieldname": "public_key",
+      "fieldtype": "Data",
+      "label": "Public Key",
+      "reqd": 1
+    },
+    {
+      "fieldname": "secret_key",
+      "fieldtype": "Password",
+      "label": "Secret Key",
+      "reqd": 1
+    },
+    {
+      "fieldname": "webhook_secret",
+      "fieldtype": "Password",
+      "label": "Webhook Secret",
+      "description": "Leave blank to verify webhooks with the secret key"
+    },
+    {
+      "fieldname": "allowed_webhook_ips",
+      "fieldtype": "Small Text",
+      "label": "Allowed Webhook IPs",
+      "description": "One address or CIDR range per line. Empty = accept any source."
+    },
+    {
+      "fieldname": "section_accounts",
+      "fieldtype": "Section Break",
+      "label": "Accounts"
+    },
+    {
+      "fieldname": "suspense_account",
+      "fieldtype": "Link",
+      "label": "Suspense Account",
+      "options": "Account",
+      "reqd": 1,
+      "description": "Every capture is booked here at the gross amount"
+    },
+    {
+      "fieldname": "mode_of_payment",
+      "fieldtype": "Link",
+      "label": "Mode of Payment",
+      "options": "Mode of Payment",
+      "reqd": 1
+    },
+    {
+      "fieldname": "col_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "settlement_bank_account",
+      "fieldtype": "Link",
+      "label": "Settlement Bank Account",
+      "options": "Account",
+      "description": "Required to book payout Journal Entries"
+    },
+    {
+      "fieldname": "paystack_fee_account",
+      "fieldtype": "Link",
+      "label": "Paystack Fee Account",
+      "options": "Account"
+    },
+    {
+      "fieldname": "section_automation",
+      "fieldtype": "Section Break",
+      "label": "Automation"
+    },
+    {
+      "fieldname": "auto_refund_on_credit_note",
+      "fieldtype": "Check",
+      "label": "Auto Refund on Credit Note",
+      "default": "0"
+    },
+    {
+      "fieldname": "auto_charge_subscription_invoices",
+      "fieldtype": "Check",
+      "label": "Auto Charge Subscription Invoices",
+      "default": "0"
+    },
+    {
+      "fieldname": "payment_gateway",
+      "fieldtype": "Link",
+      "label": "Payment Gateway",
+      "options": "Payment Gateway",
+      "read_only": 1,
+      "description": "Created automatically when the gateway is enabled"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    }
+  ]
+}

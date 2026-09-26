@@ -1,0 +1,37 @@
+/* paystack_payments.css */
+
+/* ── Checkout page ─────────────────────────────────────────────────── */
+.paystack-checkout-wrapper {
+    max-width: 480px;
+    margin: 60px auto;
+}
+
+.paystack-checkout-wrapper .card {
+    border-radius: 12px;
+    border: none;
+}
+
+.paystack-checkout-wrapper .btn-primary {
+    background-color: #00c3f7;
+    border-color: #00b0e0;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.paystack-checkout-wrapper .btn-primary:hover {
+    background-color: #00a8cc;
+    border-color: #009ab8;
+}
+
+/* ── Payment Log list badges ───────────────────────────────────────── */
+.paystack-status-pending     { color: #856404; }
+.paystack-status-completed   { color: #155724; }
+.paystack-status-failed      { color: #721c24; }
+.paystack-status-attention   { color: #721c24; font-weight: 600; }
+
+/* ── Gateway Setting form ──────────────────────────────────────────── */
+[data-fieldname="public_key"] input,
+[data-fieldname="webhook_secret"] input {
+    font-family: monospace;
+    font-size: 0.85em;
+}

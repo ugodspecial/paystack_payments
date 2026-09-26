@@ -1,0 +1,15 @@
+[project]
+name = "paystack_payments"
+version = "1.0.0"
+description = "Paystack payment gateway for Frappe — depends on the payments app, not ERPNext"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
+license = { text = "MIT" }
+authors = [{ name = "YoungAndCode LTD", email = "info@youngandcodeltd.com" }]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[tool.setuptools.packages.find]
+where = ["."]

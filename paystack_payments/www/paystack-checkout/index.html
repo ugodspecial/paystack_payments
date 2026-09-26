@@ -1,0 +1,103 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_content %}
+<div class="container" style="max-width:480px; padding-top:60px;">
+
+  {%- if expired %}
+  <div class="alert alert-warning text-center" role="alert">
+    <h4>{{ _("Payment Link Expired") }}</h4>
+    <p>{{ _("This payment link is no longer valid. Please contact the sender for a new one.") }}</p>
+  </div>
+
+  {%- elif already_paid %}
+  <div class="alert alert-success text-center" role="alert">
+    <h4>{{ _("Payment Already Received") }}</h4>
+    <p>{{ _("Thank you — this payment has already been recorded.") }}</p>
+  </div>
+
+  {%- elif failed %}
+  <div class="alert alert-danger text-center" role="alert">
+    <h4>{{ _("Payment Failed") }}</h4>
+    <p>{{ _("This payment could not be completed. Please contact the sender.") }}</p>
+  </div>
+
+  {%- else %}
+  <div class="card shadow-sm">
+    <div class="card-body text-center p-5">
+      <img src="/assets/paystack_payments/img/paystack-badge-white-rounded.png"
+           alt="Paystack" style="height:40px; margin-bottom:24px;"
+           onerror="this.style.display='none'">
+      <h4 class="mb-1">{{ description }}</h4>
+      <p class="text-muted mb-4">{{ payer_name }}</p>
+      <h2 class="mb-4 font-weight-bold">
+        {{ currency }} {{ "{:,.2f}".format(amount) }}
+      </h2>
+
+      <button id="pay-btn" class="btn btn-primary btn-lg w-100">
+        {{ _("Pay Now") }}
+      </button>
+
+      <p class="mt-3 text-muted small">
+        {{ _("Secured by") }}
+        <strong>Paystack</strong>
+      </p>
+    </div>
+  </div>
+
+  {# Success / failure banners shown after popup closes #}
+  <div id="success-banner" class="alert alert-success mt-3 d-none text-center">
+    <strong>{{ _("Payment Successful!") }}</strong>
+    {{ _("Your payment has been received and is being processed.") }}
+  </div>
+  <div id="error-banner" class="alert alert-danger mt-3 d-none text-center">
+    <strong>{{ _("Payment Failed.") }}</strong>
+    {{ _("Please try again or use a different payment method.") }}
+  </div>
+
+  {# Paystack inline JS — loaded from Paystack CDN #}
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+  <script>
+    (function () {
+      const btn = document.getElementById("pay-btn");
+      const successBanner = document.getElementById("success-banner");
+      const errorBanner = document.getElementById("error-banner");
+
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        btn.textContent = "{{ _('Opening checkout…') }}";
+
+        const handler = PaystackPop.setup({
+          key:       "{{ public_key }}",
+          email:     "{{ payer_email }}",
+          amount:    "{{ (amount * 100) | int }}",
+          currency:  "{{ currency }}",
+          ref:       "{{ log_name }}",
+          metadata: {
+            custom_fields: [
+              { display_name: "Name", variable_name: "payer_name", value: "{{ payer_name }}" },
+              { display_name: "Reference", variable_name: "log_name", value: "{{ log_name }}" }
+            ]
+          },
+          onClose: function () {
+            btn.disabled = false;
+            btn.textContent = "{{ _('Pay Now') }}";
+          },
+          callback: function (response) {
+            // Verify server-side via the webhook (already handled),
+            // but show the success banner immediately.
+            successBanner.classList.remove("d-none");
+            errorBanner.classList.add("d-none");
+            btn.disabled = true;
+            btn.textContent = "{{ _('Paid') }}";
+          }
+        });
+        handler.openIframe();
+      });
+    })();
+  </script>
+  {%- endif %}
+
+</div>
+{% endblock %}

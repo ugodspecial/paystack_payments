@@ -1,0 +1,9 @@
+{
+  "name": "Paystack Settlements vs Ledger",
+  "doctype": "Report",
+  "report_name": "Paystack Settlements vs Ledger",
+  "ref_doctype": "Paystack Settlement",
+  "report_type": "Script Report",
+  "module": "Paystack Integration",
+  "is_standard": "Yes"
+}

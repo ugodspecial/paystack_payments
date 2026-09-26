@@ -1,0 +1,107 @@
+{
+  "name": "Paystack Settlement",
+  "doctype": "DocType",
+  "module": "Paystack Integration",
+  "is_submittable": 0,
+  "autoname": "field:paystack_settlement_id",
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "paystack_settlement_id",
+      "fieldtype": "Data",
+      "label": "Paystack Settlement ID",
+      "reqd": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Pending\nBooked\nFailed",
+      "default": "Pending",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "gateway_setting",
+      "fieldtype": "Link",
+      "label": "Gateway Setting",
+      "options": "Paystack Gateway Setting",
+      "reqd": 1
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Currency",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "gross",
+      "fieldtype": "Currency",
+      "label": "Gross",
+      "options": "currency"
+    },
+    {
+      "fieldname": "fees",
+      "fieldtype": "Currency",
+      "label": "Fees",
+      "options": "currency"
+    },
+    {
+      "fieldname": "deductions",
+      "fieldtype": "Currency",
+      "label": "Deductions",
+      "options": "currency"
+    },
+    {
+      "fieldname": "net",
+      "fieldtype": "Currency",
+      "label": "Net",
+      "options": "currency"
+    },
+    {
+      "fieldname": "settlement_date",
+      "fieldtype": "Date",
+      "label": "Settlement Date"
+    },
+    {
+      "fieldname": "journal_entry",
+      "fieldtype": "Link",
+      "label": "Journal Entry",
+      "options": "Journal Entry",
+      "read_only": 1
+    },
+    {
+      "fieldname": "errors",
+      "fieldtype": "Small Text",
+      "label": "Errors",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0
+    },
+    {
+      "role": "Accounts Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1
+    },
+    {
+      "role": "Accounts User",
+      "read": 1
+    }
+  ]
+}

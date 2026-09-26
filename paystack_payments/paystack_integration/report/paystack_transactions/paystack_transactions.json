@@ -1,0 +1,9 @@
+{
+  "name": "Paystack Transactions",
+  "doctype": "Report",
+  "report_name": "Paystack Transactions",
+  "ref_doctype": "Paystack Payment Log",
+  "report_type": "Script Report",
+  "module": "Paystack Integration",
+  "is_standard": "Yes"
+}

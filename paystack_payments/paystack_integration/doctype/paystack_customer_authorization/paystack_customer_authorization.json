@@ -1,0 +1,94 @@
+{
+  "name": "Paystack Customer Authorization",
+  "doctype": "DocType",
+  "module": "Paystack Integration",
+  "is_submittable": 0,
+  "autoname": "hash",
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "customer",
+      "fieldtype": "Data",
+      "label": "Customer",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "Customer name or ID. On ERPNext sites this matches the Customer doctype."
+    },
+    {
+      "fieldname": "is_reusable",
+      "fieldtype": "Check",
+      "label": "Reusable",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Check",
+      "label": "Active",
+      "default": "1",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "authorization_code",
+      "fieldtype": "Password",
+      "label": "Authorization Code",
+      "reqd": 1,
+      "description": "Encrypted Paystack reusable authorization code"
+    },
+    {
+      "fieldname": "card_brand",
+      "fieldtype": "Data",
+      "label": "Card Brand",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "bank",
+      "fieldtype": "Data",
+      "label": "Bank"
+    },
+    {
+      "fieldname": "last_four",
+      "fieldtype": "Data",
+      "label": "Last Four Digits",
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "expiry_month",
+      "fieldtype": "Data",
+      "label": "Expiry Month"
+    },
+    {
+      "fieldname": "expiry_year",
+      "fieldtype": "Data",
+      "label": "Expiry Year"
+    },
+    {
+      "fieldname": "email",
+      "fieldtype": "Data",
+      "label": "Customer Email",
+      "options": "Email"
+    },
+    {
+      "fieldname": "signature",
+      "fieldtype": "Data",
+      "label": "Signature",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1
+    },
+    {
+      "role": "Accounts Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0
+    }
+  ]
+}

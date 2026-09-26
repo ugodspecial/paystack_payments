@@ -1,0 +1,218 @@
+{
+  "name": "Paystack Payment Log",
+  "doctype": "DocType",
+  "module": "Paystack Integration",
+  "is_submittable": 0,
+  "autoname": "hash",
+  "title_field": "reference",
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "section_core",
+      "fieldtype": "Section Break",
+      "label": "Payment Details"
+    },
+    {
+      "fieldname": "reference",
+      "fieldtype": "Data",
+      "label": "Reference",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Status",
+      "options": "Pending\nProcessed\nCompleted\nFailed\nPartially Refunded\nRefunded\nNeeds Attention",
+      "default": "Pending",
+      "in_list_view": 1,
+      "in_filter": 1
+    },
+    {
+      "fieldname": "gateway_setting",
+      "fieldtype": "Link",
+      "label": "Gateway Setting",
+      "options": "Paystack Gateway Setting",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "col_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Currency",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount",
+      "options": "currency"
+    },
+    {
+      "fieldname": "amount_paid",
+      "fieldtype": "Currency",
+      "label": "Amount Paid",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_refunded",
+      "fieldtype": "Currency",
+      "label": "Total Refunded",
+      "options": "currency",
+      "read_only": 1,
+      "default": "0"
+    },
+    {
+      "fieldname": "section_source",
+      "fieldtype": "Section Break",
+      "label": "Source Document"
+    },
+    {
+      "fieldname": "payment_request",
+      "fieldtype": "Link",
+      "label": "Payment Request",
+      "options": "Payment Request",
+      "description": "Populated for Payment Request-backed flows"
+    },
+    {
+      "fieldname": "reference_doctype",
+      "fieldtype": "Link",
+      "label": "Reference DocType",
+      "options": "DocType"
+    },
+    {
+      "fieldname": "reference_name",
+      "fieldtype": "Dynamic Link",
+      "label": "Reference Name",
+      "options": "reference_doctype"
+    },
+    {
+      "fieldname": "payer_email",
+      "fieldtype": "Data",
+      "label": "Payer Email"
+    },
+    {
+      "fieldname": "payer_name",
+      "fieldtype": "Data",
+      "label": "Payer Name"
+    },
+    {
+      "fieldname": "section_paystack",
+      "fieldtype": "Section Break",
+      "label": "Paystack Data"
+    },
+    {
+      "fieldname": "paystack_txn_id",
+      "fieldtype": "Data",
+      "label": "Paystack Transaction ID",
+      "read_only": 1
+    },
+    {
+      "fieldname": "paystack_fee",
+      "fieldtype": "Currency",
+      "label": "Paystack Fee",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "checkout_url",
+      "fieldtype": "Small Text",
+      "label": "Checkout URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "hosted_url",
+      "fieldtype": "Small Text",
+      "label": "Hosted Payment URL",
+      "read_only": 1
+    },
+    {
+      "fieldname": "link_expires_at",
+      "fieldtype": "Datetime",
+      "label": "Link Expires At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "payment_date",
+      "fieldtype": "Datetime",
+      "label": "Payment Date",
+      "read_only": 1
+    },
+    {
+      "fieldname": "col_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "payment_entry",
+      "fieldtype": "Link",
+      "label": "Payment Entry",
+      "options": "Payment Entry",
+      "read_only": 1
+    },
+    {
+      "fieldname": "settlement",
+      "fieldtype": "Link",
+      "label": "Settlement",
+      "options": "Paystack Settlement",
+      "read_only": 1
+    },
+    {
+      "fieldname": "retry_count",
+      "fieldtype": "Int",
+      "label": "Retry Count",
+      "read_only": 1,
+      "default": "0"
+    },
+    {
+      "fieldname": "next_retry_at",
+      "fieldtype": "Datetime",
+      "label": "Next Retry At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_errors",
+      "fieldtype": "Section Break",
+      "label": "Errors"
+    },
+    {
+      "fieldname": "errors",
+      "fieldtype": "Small Text",
+      "label": "Errors",
+      "read_only": 1
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0
+    },
+    {
+      "role": "Accounts Manager",
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0
+    },
+    {
+      "role": "Accounts User",
+      "read": 1,
+      "write": 0,
+      "create": 0
+    }
+  ]
+}
