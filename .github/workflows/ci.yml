@@ -7,6 +7,7 @@ on:
     branches: [main, develop]
 
 jobs:
+  # ── Lint (fast, no Frappe needed) ─────────────────────────────────────────
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -14,7 +15,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
 
       - name: Install ruff
         run: pip install ruff
@@ -22,20 +23,29 @@ jobs:
       - name: Lint
         run: ruff check paystack_payments/
 
+  # ── Integration tests ──────────────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
     needs: lint
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        frappe-branch: [version-15, version-16]
+        include:
+          # version-15 requires Python 3.10 and MariaDB 10.6
+          - frappe-branch: version-15
+            python-version: "3.10"
+            mariadb-image: "mariadb:10.6"
+          # version-16 uses `type` alias syntax — requires Python 3.12+
+          - frappe-branch: version-16
+            python-version: "3.12"
+            mariadb-image: "mariadb:11.3"
 
     services:
       mariadb:
-        image: mariadb:10.6
+        image: ${{ matrix.mariadb-image }}
         env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: test_frappe
+          MARIADB_ROOT_PASSWORD: root
         ports:
           - 3306:3306
         options: >-
@@ -54,35 +64,53 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          check-latest: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
+            wkhtmltopdf redis-tools
+
+      - name: Install Yarn
+        run: npm install -g yarn
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ matrix.frappe-branch }}-${{ hashFiles('requirements.txt') }}
+          key: pip-${{ matrix.frappe-branch }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            pip-${{ matrix.frappe-branch }}-${{ matrix.python-version }}-
 
-      - name: Install bench
+      - name: Install frappe-bench
         run: pip install frappe-bench
 
-      - name: Init bench
+      - name: Initialise bench
         run: |
           bench init \
             --frappe-branch ${{ matrix.frappe-branch }} \
             --skip-redis-config-generation \
+            --no-procfile \
             frappe-bench
           cd frappe-bench
           bench set-mariadb-host 127.0.0.1
-          bench set-redis-cache-host redis://127.0.0.1:6379
-          bench set-redis-queue-host redis://127.0.0.1:6379
+          bench set-redis-cache-host   redis://127.0.0.1:6379
+          bench set-redis-queue-host   redis://127.0.0.1:6379
           bench set-redis-socketio-host redis://127.0.0.1:6379
 
       - name: Install payments app
         run: |
           cd frappe-bench
-          bench get-app payments \
-            --branch ${{ matrix.frappe-branch }} \
-            https://github.com/frappe/payments
+          bench get-app \
+            https://github.com/frappe/payments \
+            --branch ${{ matrix.frappe-branch }}
 
       - name: Install paystack_payments app
         run: |
@@ -97,7 +125,7 @@ jobs:
             --admin-password admin \
             --no-mariadb-socket
 
-      - name: Install apps on site
+      - name: Install apps on test site
         run: |
           cd frappe-bench
           bench --site test.localhost install-app payments
@@ -109,3 +137,12 @@ jobs:
           bench --site test.localhost run-tests --app paystack_payments
         env:
           CI: true
+
+      - name: Show bench logs on failure
+        if: failure()
+        run: |
+          cd frappe-bench
+          cat bench_start.log 2>/dev/null || true
+          for f in logs/*.log*; do
+            echo "=== $f ==="; cat "$f" 2>/dev/null || true
+          done
