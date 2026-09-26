@@ -11,27 +11,101 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install ruff
-      - run: ruff check paystack_payments/
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check paystack_payments/
 
   test:
     runs-on: ubuntu-latest
     needs: lint
     strategy:
+      fail-fast: false
       matrix:
         frappe-branch: [version-15, version-16]
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_frappe
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
     steps:
       - uses: actions/checkout@v4
-      - uses: frappe/frappe-ui-actions/setup-frappe@main
+
+      - uses: actions/setup-python@v5
         with:
-          branch: ${{ matrix.frappe-branch }}
-          apps: |
-            payments
-            paystack_payments .
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.frappe-branch }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install bench
+        run: pip install frappe-bench
+
+      - name: Init bench
+        run: |
+          bench init \
+            --frappe-branch ${{ matrix.frappe-branch }} \
+            --skip-redis-config-generation \
+            frappe-bench
+          cd frappe-bench
+          bench set-mariadb-host 127.0.0.1
+          bench set-redis-cache-host redis://127.0.0.1:6379
+          bench set-redis-queue-host redis://127.0.0.1:6379
+          bench set-redis-socketio-host redis://127.0.0.1:6379
+
+      - name: Install payments app
+        run: |
+          cd frappe-bench
+          bench get-app payments \
+            --branch ${{ matrix.frappe-branch }} \
+            https://github.com/frappe/payments
+
+      - name: Install paystack_payments app
+        run: |
+          cd frappe-bench
+          bench get-app paystack_payments ${{ github.workspace }}
+
+      - name: Create test site
+        run: |
+          cd frappe-bench
+          bench new-site test.localhost \
+            --mariadb-root-password root \
+            --admin-password admin \
+            --no-mariadb-socket
+
+      - name: Install apps on site
+        run: |
+          cd frappe-bench
+          bench --site test.localhost install-app payments
+          bench --site test.localhost install-app paystack_payments
+
       - name: Run tests
         run: |
-          cd ~/frappe-bench
+          cd frappe-bench
           bench --site test.localhost run-tests --app paystack_payments
+        env:
+          CI: true
