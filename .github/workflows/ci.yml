@@ -27,19 +27,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: lint
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          # version-15 requires Python 3.10 and MariaDB 10.6
+          # Frappe v15 — Python 3.10, MariaDB 10.6
           - frappe-branch: version-15
             python-version: "3.10"
+            node-version: "18"
             mariadb-image: "mariadb:10.6"
-          # version-16 uses `type` alias syntax — requires Python 3.12+
+
+          # Frappe v16 — Python 3.14, MariaDB 10.6
+          # (v16.35+ requires Python >=3.14,<3.15)
           - frappe-branch: version-16
-            python-version: "3.12"
-            mariadb-image: "mariadb:11.3"
+            python-version: "3.14"
+            node-version: "24"
+            mariadb-image: "mariadb:10.6"
 
     services:
       mariadb:
@@ -49,7 +53,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
@@ -62,32 +66,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
-          check-latest: true
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Yarn
+        run: npm install -g yarn
 
       - name: Install system dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-            libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev \
-            wkhtmltopdf redis-tools
-
-      - name: Install Yarn
-        run: npm install -g yarn
+            libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev \
+            librsvg2-dev wkhtmltopdf
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ matrix.frappe-branch }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          key: >-
+            pip-${{ matrix.frappe-branch }}-py${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            pip-${{ matrix.frappe-branch }}-${{ matrix.python-version }}-
+            pip-${{ matrix.frappe-branch }}-py${{ matrix.python-version }}-
 
       - name: Install frappe-bench
         run: pip install frappe-bench
@@ -101,8 +108,8 @@ jobs:
             frappe-bench
           cd frappe-bench
           bench set-mariadb-host 127.0.0.1
-          bench set-redis-cache-host   redis://127.0.0.1:6379
-          bench set-redis-queue-host   redis://127.0.0.1:6379
+          bench set-redis-cache-host    redis://127.0.0.1:6379
+          bench set-redis-queue-host    redis://127.0.0.1:6379
           bench set-redis-socketio-host redis://127.0.0.1:6379
 
       - name: Install payments app
@@ -142,7 +149,6 @@ jobs:
         if: failure()
         run: |
           cd frappe-bench
-          cat bench_start.log 2>/dev/null || true
           for f in logs/*.log*; do
-            echo "=== $f ==="; cat "$f" 2>/dev/null || true
+            echo "=== $f ===" && cat "$f" 2>/dev/null || true
           done

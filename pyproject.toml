@@ -1,15 +1,20 @@
 [project]
 name = "paystack_payments"
-version = "1.0.0"
+authors = [
+    { name = "YoungAndCode LTD", email = "hello@youngandcode.com" }
+]
 description = "Paystack payment gateway for Frappe — depends on the payments app, not ERPNext"
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "YoungAndCode LTD", email = "info@youngandcodeltd.com" }]
+dynamic = ["version"]
 
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
 
-[tool.setuptools.packages.find]
-where = ["."]
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<17.0.0"
+
+[tool.ruff]
+line-length = 110
