@@ -168,3 +168,4 @@ MIT — see `license.txt`
 Inspired by [frappe_paystack](https://github.com/mymi14s/frappe_paystack) by mymi14s.  
 Rewritten by **YoungAndCode LTD** to remove the ERPNext dependency and integrate
 with the `payments` app.
+
