@@ -1,155 +1,99 @@
 """
 paystack_payment_log.py
-Tracks a single Paystack charge lifecycle from Pending → Completed.
-No ERPNext imports — all accounting goes through the `payments` app
-Payment Request / Payment Entry chain, or direct frappe.accounting calls.
+Controller for the Paystack Payment Log doctype.
+
+Tracks a single Paystack charge lifecycle:
+  Pending → Processed → Completed / Partially Refunded / Refunded / Failed / Needs Attention
+
+All business-logic methods are thin — they update the log's state and
+then delegate to payment/lifecycle.py for cross-app notifications.
+No ERPNext imports anywhere in this file.
 """
+
+from __future__ import annotations
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_to_date, now_datetime
 
+# Maximum number of automated retries before flagging for human review.
+_MAX_RETRIES = 12
+_MAX_WAIT_HOURS = 24
+
 
 class PaystackPaymentLog(Document):
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def before_insert(self):
+    def before_insert(self) -> None:
         self.retry_count = 0
+        self.status = self.status or "Pending"
 
-    def validate(self):
-        if self.total_refunded and self.amount_paid and self.total_refunded > self.amount_paid:
+    def validate(self) -> None:
+        if (
+            self.total_refunded
+            and self.amount_paid
+            and self.total_refunded > self.amount_paid
+        ):
             frappe.throw(
                 _("Total Refunded ({0}) cannot exceed Amount Paid ({1}).").format(
                     self.total_refunded, self.amount_paid
                 )
             )
 
-    # ── Business methods ──────────────────────────────────────────────────────
+    # ── State transitions ─────────────────────────────────────────────────────
 
-    def mark_processed(self, txn_id, amount_paid, fee, payment_date):
-        """Called by the webhook handler on charge.success."""
-        self.paystack_txn_id = txn_id
-        self.amount_paid = amount_paid
-        self.paystack_fee = fee
-        self.payment_date = payment_date
-        self.status = "Processed"
-        self.save(ignore_permissions=True)
+    def mark_processed(
+        self,
+        *,
+        txn_id: str,
+        amount_paid: float,
+        fee: float,
+        payment_date: str,
+    ) -> None:
+        """
+        Called by the webhook handler on charge.success.
+        Moves the log from Pending → Processed.
+        """
+        self.db_set("paystack_txn_id", txn_id)
+        self.db_set("amount_paid", amount_paid)
+        self.db_set("paystack_fee", fee)
+        self.db_set("payment_date", payment_date)
+        self.db_set("status", "Processed")
         frappe.db.commit()
 
-    def mark_completed(self, payment_entry_name):
-        """Called once the Payment Entry is booked."""
-        self.payment_entry = payment_entry_name
-        self.status = "Completed"
-        self.save(ignore_permissions=True)
+    def mark_completed(self, payment_entry_name: str | None = None) -> None:
+        """Moves the log to Completed and optionally links a Payment Entry."""
+        if payment_entry_name:
+            self.db_set("payment_entry", payment_entry_name)
+        self.db_set("status", "Completed")
         frappe.db.commit()
 
-    def mark_failed(self, reason):
-        self.status = "Failed"
-        self.errors = reason
-        self.save(ignore_permissions=True)
+    def mark_failed(self, reason: str) -> None:
+        self.db_set("errors", (reason or "")[:2000])
+        self.db_set("status", "Failed")
         frappe.db.commit()
 
-    def schedule_retry(self):
-        """Exponential back-off — doubles each attempt, capped at 24 h."""
-        MAX_RETRIES = 12
-        MAX_WAIT_HOURS = 24
+    def schedule_retry(self) -> None:
+        """
+        Schedule the next retry attempt with exponential back-off.
+        Caps at _MAX_RETRIES; marks Needs Attention thereafter.
+        """
+        current_retries = (self.retry_count or 0) + 1
+        self.db_set("retry_count", current_retries)
 
-        self.retry_count = (self.retry_count or 0) + 1
-
-        if self.retry_count > MAX_RETRIES:
-            self.status = "Needs Attention"
+        if current_retries > _MAX_RETRIES:
+            self.db_set("status", "Needs Attention")
             frappe.log_error(
-                title="Paystack Needs Attention",
-                message=f"Payment Log {self.name} ({self.paystack_txn_id}) "
-                        "has exceeded max retries without a Payment Entry.",
+                title=f"Paystack Payment Log {self.name} needs attention",
+                message=(
+                    f"Payment Log {self.name} (Paystack txn {self.paystack_txn_id}) "
+                    f"has exceeded {_MAX_RETRIES} retries without completing."
+                ),
             )
         else:
-            wait_minutes = min(10 * (2 ** (self.retry_count - 1)), MAX_WAIT_HOURS * 60)
-            self.next_retry_at = add_to_date(now_datetime(), minutes=wait_minutes)
+            wait_minutes = min(10 * (2 ** (current_retries - 1)), _MAX_WAIT_HOURS * 60)
+            self.db_set("next_retry_at", add_to_date(now_datetime(), minutes=wait_minutes))
 
-        self.save(ignore_permissions=True)
         frappe.db.commit()
-
-    def settle_payment_request(self):
-        """
-        Drive the Payment Request from the `payments` app to create the
-        Payment Entry.  Works for any app that has Payment Request — no
-        ERPNext import needed.
-        """
-        if not self.payment_request:
-            return self._book_direct_payment_entry()
-
-        pr = frappe.get_doc("Payment Request", self.payment_request)
-
-        # Amount tolerance check (0.01 in the charged currency)
-        if abs((self.amount_paid or 0) - pr.grand_total) > 0.01:
-            msg = (
-                f"Amount mismatch: Paystack charged {self.amount_paid} "
-                f"{self.currency}, Payment Request expects {pr.grand_total}."
-            )
-            self.errors = msg
-            self.status = "Needs Attention"
-            self.save(ignore_permissions=True)
-            frappe.db.commit()
-            return
-
-        # Use run_payment_flow() — the payments-app method that creates the
-        # Payment Entry and marks the Payment Request as paid.
-        # (set_as_paid() is ERPNext-only; run_payment_flow() is the payments-app equivalent)
-        try:
-            pr.run_payment_flow()
-        except AttributeError:
-            # Fallback: older payments-app versions expose set_as_paid()
-            pr.set_as_paid()
-
-        # Look up the Payment Entry that was just created
-        pe_name = frappe.db.get_value(
-            "Payment Entry",
-            {"reference_no": self.paystack_txn_id},
-            "name",
-        ) or frappe.db.get_value(
-            "Payment Entry",
-            {"letter_head": self.payment_request},  # some versions link via letter_head
-            "name",
-        ) or frappe.db.get_value(
-            "Payment Entry Reference",
-            {"reference_name": self.payment_request},
-            "parent",
-        )
-        self.mark_completed(pe_name)
-
-    def _book_direct_payment_entry(self):
-        """
-        For logs with no Payment Request (direct / dunning / manual).
-        Creates and submits a Payment Entry against the suspense account.
-        """
-        gw = frappe.get_doc("Paystack Gateway Setting", self.gateway_setting)
-
-        pe = frappe.new_doc("Payment Entry")
-        pe.payment_type = "Receive"
-        pe.mode_of_payment = gw.mode_of_payment
-        pe.company = self.company
-
-        # paid_from must be the receivable/debtor account; use the suspense
-        # account as paid_to (where the money lands before bank reconciliation)
-        pe.paid_to = gw.suspense_account
-        pe.paid_to_account_currency = self.currency or gw.currency
-
-        # Use the suspense account as the source too for a direct unlinked entry
-        pe.paid_from = gw.suspense_account
-        pe.paid_from_account_currency = self.currency or gw.currency
-
-        pe.paid_amount = self.amount_paid or self.amount
-        pe.received_amount = self.amount_paid or self.amount
-        pe.source_exchange_rate = 1
-        pe.target_exchange_rate = 1
-
-        pe.reference_no = self.paystack_txn_id or self.name
-        pe.reference_date = str(self.payment_date or frappe.utils.today())[:10]
-        pe.remarks = f"Paystack direct charge — Payment Log {self.name}"
-
-        pe.insert(ignore_permissions=True)
-        pe.submit()
-        self.mark_completed(pe.name)

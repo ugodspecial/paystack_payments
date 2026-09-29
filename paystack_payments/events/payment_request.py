@@ -1,77 +1,75 @@
 """
 events/payment_request.py
-Doc events for the `Payment Request` doctype (from the payments app).
-Triggered via hooks.py > doc_events.
-No ERPNext imports.
+Doc events for the Payment Request doctype (from the payments app).
+
+Only registered when the site has the payments app installed.
+Bridges the payments-app Payment Request submission to our checkout flow.
+No ERPNext imports at module level.
 """
+
+from __future__ import annotations
 
 import frappe
 
 
-def on_submit(doc, method=None):
+def on_submit(doc, method=None) -> None:
     """
-    When a Payment Request backed by the Paystack gateway is submitted,
-    ensure a Payment Log exists.  The checkout URL was already created
-    by get_payment_url() during Payment Request creation.
+    When a Paystack-backed Payment Request is submitted, ensure a Payment Log
+    and checkout URL exist. The controller's get_payment_url() should have
+    already created the log, but this is a defensive fallback.
     """
     if not _is_paystack_gateway(doc):
         return
 
     existing = frappe.db.get_value(
-        "Paystack Payment Log", {"payment_request": doc.name}, "name"
+        "Paystack Payment Log", {"reference_doctype": "Payment Request",
+                                  "reference_docname": doc.name}, "name"
     )
     if existing:
-        return  # Already created during get_payment_url
+        return
 
-    # Fallback: create the log now (e.g. if PR was created without going through
-    # our gateway controller — shouldn't happen in normal flow, but be defensive)
     gw_setting = _get_gateway_setting(doc)
     if not gw_setting:
         return
 
-    from paystack_payments.utils.checkout import (
-        create_payment_log_and_url,
-    )
-
-    create_payment_log_and_url(
+    from paystack_payments.gateway.checkout import create_payment
+    create_payment(
         gateway_setting=gw_setting,
-        payment_request_name=doc.name,
-        amount=doc.grand_total,
-        currency=doc.currency,
+        amount=float(doc.grand_total or 0),
+        currency=doc.currency or "NGN",
         payer_email=doc.email_to or "",
         payer_name=doc.party_name or "",
-        reference_doctype=doc.reference_doctype,
-        reference_name=doc.reference_name,
+        description=f"Payment Request {doc.name}",
+        reference_doctype="Payment Request",
+        reference_docname=doc.name,
     )
 
 
-def on_cancel(doc, method=None):
-    """
-    Cancel any pending/processed Payment Logs for this Payment Request.
-    """
+def on_cancel(doc, method=None) -> None:
+    """Cancel pending Payment Logs when a Payment Request is cancelled."""
     if not _is_paystack_gateway(doc):
         return
 
-    logs = frappe.get_all(
+    pending_logs = frappe.get_all(
         "Paystack Payment Log",
         filters={
-            "payment_request": doc.name,
+            "reference_doctype": "Payment Request",
+            "reference_docname": doc.name,
             "status": ["in", ["Pending", "Processed"]],
         },
         pluck="name",
+        ignore_permissions=True,
     )
-    for name in logs:
+    for name in pending_logs:
         frappe.db.set_value("Paystack Payment Log", name, "status", "Failed")
 
-    if logs:
+    if pending_logs:
         frappe.db.commit()
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def _is_paystack_gateway(doc) -> bool:
-    gw = getattr(doc, "payment_gateway", None)
-    return bool(gw and "Paystack" in gw)
+    gw = getattr(doc, "payment_gateway", None) or ""
+    return "paystack" in gw.lower()
 
 
 def _get_gateway_setting(doc) -> str | None:

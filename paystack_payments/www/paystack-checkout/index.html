@@ -71,7 +71,7 @@
         const handler = PaystackPop.setup({
           key:       "{{ public_key }}",
           email:     "{{ payer_email }}",
-          amount:    "{{ (amount * 100) | int }}",
+          amount:    {{ (amount * 100) | int }},
           currency:  "{{ currency }}",
           ref:       "{{ log_name }}",
           metadata: {

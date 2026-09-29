@@ -43,8 +43,9 @@
       "fieldtype": "Link",
       "label": "Company",
       "options": "Company",
-      "reqd": 1,
-      "in_list_view": 1
+      "reqd": 0,
+      "in_list_view": 1,
+      "description": "Required only for ERPNext sites."
     },
     {
       "fieldname": "currency",
@@ -99,14 +100,15 @@
     {
       "fieldname": "section_accounts",
       "fieldtype": "Section Break",
-      "label": "Accounts"
+      "label": "ERPNext Accounting (optional \u2014 requires ERPNext)",
+      "description": "These fields are only needed when ERPNext is installed. Leave blank for non-ERPNext Frappe installations."
     },
     {
       "fieldname": "suspense_account",
       "fieldtype": "Link",
       "label": "Suspense Account",
       "options": "Account",
-      "reqd": 1,
+      "reqd": 0,
       "description": "Every capture is booked here at the gross amount"
     },
     {
@@ -114,7 +116,7 @@
       "fieldtype": "Link",
       "label": "Mode of Payment",
       "options": "Mode of Payment",
-      "reqd": 1
+      "reqd": 0
     },
     {
       "fieldname": "col_break_2",

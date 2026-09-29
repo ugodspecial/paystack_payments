@@ -1,9 +1,12 @@
 """
 www/my-payments/index.py
-Portal page that shows a logged-in user's Paystack payment history.
-Matches Payment Logs by the session user's email address.
-No ERPNext dependency.
+Portal page: shows a logged-in user's Paystack payment history.
+
+Generic — matches by payer_email only, no Customer doctype dependency.
+On ERPNext sites, the template can optionally show linked invoices.
 """
+
+from __future__ import annotations
 
 import frappe
 from frappe import _
@@ -16,13 +19,13 @@ def get_context(context):
     context.title = _("My Payments")
     context.no_breadcrumbs = True
 
-    email = frappe.session.user
-    if email == "Guest":
+    user_email: str = frappe.session.user
+    if not user_email or user_email == "Guest":
         frappe.throw(_("You must be logged in to view your payments."), frappe.PermissionError)
 
-    context.payments = frappe.db.get_all(
+    context.payments = frappe.get_all(
         "Paystack Payment Log",
-        filters={"payer_email": email},
+        filters={"payer_email": user_email},
         fields=[
             "name",
             "status",
@@ -30,9 +33,14 @@ def get_context(context):
             "currency",
             "payment_date",
             "reference_doctype",
-            "reference_name",
+            "reference_docname",
+            "description",
             "paystack_txn_id",
         ],
         order_by="creation desc",
         limit=50,
+        ignore_permissions=True,
     )
+
+    # On ERPNext sites, optionally enrich with invoice links.
+    context.erpnext_installed = "erpnext" in frappe.get_installed_apps()

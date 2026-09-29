@@ -1,9 +1,9 @@
 [project]
 name = "paystack_payments"
 authors = [
-    { name = "YoungAndCode LTD", email = "hello@youngandcode.com" }
+    { name = "YoungAndCode LTD", email = "info@youngandcodeltd.com" }
 ]
-description = "Paystack payment gateway for Frappe — depends on the payments app, not ERPNext"
+description = "Paystack payment gateway for Frappe. Requires only the payments app — ERPNext is optional."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -15,6 +15,33 @@ build-backend = "flit_core.buildapi"
 
 [tool.bench.frappe-dependencies]
 frappe = ">=15.0.0,<17.0.0"
+payments = "*"
 
 [tool.ruff]
 line-length = 110
+
+[tool.ruff.lint]
+# Security rules enforced in CI
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
+    "B",   # flake8-bugbear
+    "BLE", # blind exception
+    "PIE", # misc cleanups
+    "RUF", # Ruff-specific
+]
+ignore = [
+    "S608",  # SQL injection via string formatting — Frappe's db.sql uses %s parameterisation
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use assert and may inspect internals
+"paystack_payments/tests/*" = ["S101", "S105", "BLE001"]
+# Compatibility shims are intentionally thin re-exports
+"paystack_payments/utils/paystack_client.py" = ["F401"]
+"paystack_payments/utils/checkout.py" = ["F401"]
+"paystack_payments/utils/webhook.py" = ["F401"]
