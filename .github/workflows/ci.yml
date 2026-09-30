@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install ruff
         run: pip install ruff
@@ -32,10 +32,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Frappe v15 — Python 3.10, MariaDB 10.6
+          # Frappe v15 — Python 3.12, MariaDB 10.6
           - frappe-branch: version-15
-            python-version: "3.10"
-            node-version: "18"
+            python-version: "3.12"
+            node-version: "24"
             mariadb-image: "mariadb:10.6"
 
           # Frappe v16 — Python 3.14, MariaDB 10.6
