@@ -112,3 +112,30 @@ def collect_subscription_invoices() -> None:
         collect_subscription_invoices as _collect,
     )
     _collect()
+
+
+def ensure_erpnext_setup() -> None:
+    """
+    Periodically ensure ERPNext-specific Paystack configuration exists.
+
+    This handles the case where:
+
+        paystack_payments is installed first
+        ERPNext is installed later
+
+    Safe to run repeatedly and silently skipped when ERPNext is absent.
+    """
+    if "erpnext" not in frappe.get_installed_apps():
+        return
+
+    try:
+        from paystack_payments.setup.install import ensure_erpnext_setup as _ensure
+
+        _ensure()
+        frappe.db.commit()
+
+    except Exception:  # noqa: BLE001
+        frappe.log_error(
+            title="Paystack: ERPNext setup failed",
+            message=frappe.get_traceback(),
+        )

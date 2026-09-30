@@ -1,9 +1,6 @@
 """
 setup/install.py
-Called by the after_install hook in hooks.py.
-
-On all sites: registers the Payment Gateway in the payments app.
-On ERPNext sites: also creates the Paystack Mode of Payment.
+Installation and ERPNext-dependent setup helpers.
 """
 
 from __future__ import annotations
@@ -12,16 +9,35 @@ import frappe
 
 
 def after_install() -> None:
-    _create_mode_of_payment_if_erpnext()
+    """
+    Called when paystack_payments is installed.
+
+    If ERPNext is already installed, create the ERPNext-specific
+    Paystack configuration. Otherwise, safely do nothing.
+    """
+    ensure_erpnext_setup()
+
     frappe.db.commit()
     frappe.clear_cache()
 
 
-def _create_mode_of_payment_if_erpnext() -> None:
+def ensure_erpnext_setup() -> None:
     """
-    Mode of Payment is an ERPNext doctype — only create it when ERPNext
-    is installed. On pure Frappe + payments sites, skip silently.
+    Ensure ERPNext-specific Paystack configuration exists.
+
+    Safe to call repeatedly.
+
+    Does nothing when ERPNext is not installed.
     """
+    if "erpnext" not in frappe.get_installed_apps():
+        return
+
+    _create_mode_of_payment()
+
+
+def _create_mode_of_payment() -> None:
+    """Create the Paystack Mode of Payment if it doesn't already exist."""
+
     if not frappe.db.table_exists("tabMode of Payment"):
         return
 
@@ -36,4 +52,7 @@ def _create_mode_of_payment_if_erpnext() -> None:
             "enabled": 1,
         }
     ).insert(ignore_permissions=True)
-    frappe.logger("paystack").info("paystack_payments: created Mode of Payment 'Paystack'")
+
+    frappe.logger("paystack").info(
+        "paystack_payments: created Mode of Payment 'Paystack'"
+    )

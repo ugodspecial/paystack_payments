@@ -49,9 +49,16 @@ doc_events = {
 scheduler_events = {
     "cron": {
         # Retry Processed logs with no Payment Entry every 10 minutes.
-        "*/10 * * * *": ["paystack_payments.tasks.retry_pending_captures"],
-        # Retry failed settlements hourly.
-        "0 * * * *": ["paystack_payments.tasks.retry_pending_settlements"],
+        "*/10 * * * *": [
+            "paystack_payments.tasks.retry_pending_captures",
+        ],
+
+        # Retry failed settlements hourly + check for when ERPNext is Installed every hour.
+        "0 * * * *": [
+            "paystack_payments.tasks.retry_pending_settlements",
+            "paystack_payments.tasks.ensure_erpnext_setup",
+        ],
+
         # Daily: reconciliation + ERPNext subscription auto-charge.
         "0 2 * * *": [
             "paystack_payments.tasks.daily_reconciliation",
@@ -65,6 +72,8 @@ after_install = "paystack_payments.setup.install.after_install"
 before_uninstall = "paystack_payments.setup.uninstall.before_uninstall"
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+# Mode of Payment is intentionally NOT a fixture because it is an ERPNext
+# DocType. It is created conditionally by after_install() when ERPNext exists.
 fixtures = [
     {"dt": "Payment Gateway", "filters": [["gateway", "=", "Paystack"]]},
 ]
