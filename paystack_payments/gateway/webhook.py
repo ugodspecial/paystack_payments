@@ -19,11 +19,11 @@ import json
 import logging
 
 import frappe
-from frappe.utils import now_datetime
 
 from paystack_payments.gateway.client import PaystackClient
 
 logger = logging.getLogger(__name__)
+
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
@@ -79,7 +79,6 @@ def handle_webhook(raw_body: bytes, signature: str, ip: str) -> None:
                 message=frappe.get_traceback(),
             )
     else:
-        # Unknown/unsupported event — log and ignore.
         logger.debug("paystack_payments: unhandled webhook event %r", event_type)
 
 
@@ -90,10 +89,7 @@ def _resolve_gateway(raw_body: bytes, signature: str):
     """
     Iterate all enabled gateways and find the one whose signing secret
     produces a digest matching `signature`.
-
     Returns the matching gateway doc, or None.
-    Raises a hard error if two gateways match the same signature (key hygiene
-    violation — each company/gateway should have its own key pair).
     """
     gateway_names: list[str] = frappe.get_all(
         "Paystack Gateway Setting",
@@ -105,7 +101,6 @@ def _resolve_gateway(raw_body: bytes, signature: str):
     matches = []
     for name in gateway_names:
         gw = frappe.get_cached_doc("Paystack Gateway Setting", name)
-        # Prefer the dedicated webhook_secret; fall back to secret_key.
         secret = gw.get_password("webhook_secret") or gw.get_password("secret_key")
         if PaystackClient.verify_webhook_signature(raw_body, signature, secret):
             matches.append(gw)
@@ -118,7 +113,6 @@ def _resolve_gateway(raw_body: bytes, signature: str):
             title="Paystack: ambiguous webhook signature",
             message=(
                 "Multiple enabled gateway settings share the same signing secret. "
-                "Give each gateway its own unique webhook secret. "
                 f"Matching gateways: {[g.name for g in matches]}"
             ),
         )
@@ -129,11 +123,7 @@ def _resolve_gateway(raw_body: bytes, signature: str):
 
 
 def _ip_allowed(ip: str, gw) -> bool:
-    """
-    Return True if `ip` is permitted by the gateway's allowlist.
-    Empty allowlist = accept all sources.
-    Supports individual IPs and CIDR ranges (one per line or comma-separated).
-    """
+    """Return True if `ip` is permitted by the gateway's allowlist."""
     raw: str = (gw.allowed_webhook_ips or "").strip()
     if not raw:
         return True
@@ -167,32 +157,25 @@ def _on_charge_success(data: dict, gw) -> None:
     """
     Paystack charge.success event.
 
-    1. Extract transaction details from the event payload.
-    2. Deduplicate — ignore if already processed.
-    3. Locate the Payment Log by its reference (= log name).
-    4. Update log with capture details.
-    5. Store reusable card authorisation if present.
-    6. Delegate to payment lifecycle for post-payment actions.
+    Guard checks run FIRST (reference, txn_id, dedup) before any
+    frappe.utils call that might touch the database or cache.
     """
     reference: str = (data.get("reference") or "").strip()
     txn_id: str = str(data.get("id") or "")
-    amount_kobo: int = int(data.get("amount") or 0)
-    fee_kobo: int = int(data.get("fees") or 0)
-    paid_at: str = data.get("paid_at") or str(now_datetime())
 
+    # ── Guard checks (no DB/cache calls) ─────────────────────────────────────
     if not reference or not txn_id:
         logger.warning("paystack_payments: charge.success missing reference or id")
         return
 
-    # Deduplication — never process the same Paystack transaction twice.
-    if frappe.db.exists(
-        "Paystack Payment Log", {"paystack_txn_id": txn_id}
-    ):
+    # ── Deduplication ─────────────────────────────────────────────────────────
+    if frappe.db.exists("Paystack Payment Log", {"paystack_txn_id": txn_id}):
         logger.info(
             "paystack_payments: duplicate charge.success for txn_id=%r — ignored", txn_id
         )
         return
 
+    # ── Load Payment Log ──────────────────────────────────────────────────────
     log = _get_log(reference)
     if log is None:
         logger.warning(
@@ -200,7 +183,7 @@ def _on_charge_success(data: dict, gw) -> None:
         )
         return
 
-    # Scope check — reject cross-company webhook spoofing.
+    # ── Scope check ───────────────────────────────────────────────────────────
     if log.gateway_setting != gw.name:
         frappe.log_error(
             title="Paystack: gateway mismatch on webhook",
@@ -211,7 +194,12 @@ def _on_charge_success(data: dict, gw) -> None:
         )
         return
 
-    # Mark as captured.
+    # ── Extract remaining fields (now_datetime only called if paid_at absent) ─
+    amount_kobo: int = int(data.get("amount") or 0)
+    fee_kobo: int = int(data.get("fees") or 0)
+    paid_at: str = data.get("paid_at") or _now_str()
+
+    # ── Mark captured ─────────────────────────────────────────────────────────
     log.mark_processed(
         txn_id=txn_id,
         amount_paid=amount_kobo / 100,
@@ -219,13 +207,9 @@ def _on_charge_success(data: dict, gw) -> None:
         payment_date=paid_at,
     )
 
-    # Store reusable card authorisation (non-blocking).
     _maybe_store_authorization(data, gw)
 
-    # Delegate to the payment lifecycle — this is where ERPNext / LMS /
-    # School actions happen, all without being called from here.
     from paystack_payments.payment.lifecycle import on_payment_success
-
     on_payment_success(log)
 
 
@@ -233,6 +217,7 @@ def _on_charge_failed(data: dict, gw) -> None:
     reference: str = (data.get("reference") or "").strip()
     if not reference:
         return
+
     log = _get_log(reference)
     if log and log.gateway_setting == gw.name:
         log.mark_failed(data.get("gateway_response") or "Charge failed")
@@ -300,20 +285,16 @@ def _on_settlement_success(data: dict, gw) -> None:
         )
         return
 
-    settlement = frappe.get_doc(
-        {
-            "doctype": "Paystack Settlement",
-            "paystack_settlement_id": settlement_id,
-            "gateway_setting": gw.name,
-            "currency": gw.currency,
-            "gross": int(data.get("total_amount") or 0) / 100,
-            "fees": int(data.get("total_fees") or 0) / 100,
-            "deductions": int(data.get("total_processed") or 0) / 100,
-            "net": int(data.get("settlement_amount") or 0) / 100,
-            "settlement_date": (data.get("settled_at") or "")[:10] or frappe.utils.today(),
-            "status": "Pending",
-        }
-    )
+    settlement = frappe.new_doc("Paystack Settlement")
+    settlement.paystack_settlement_id = settlement_id
+    settlement.gateway_setting = gw.name
+    settlement.currency = gw.currency
+    settlement.gross = int(data.get("total_amount") or 0) / 100
+    settlement.fees = int(data.get("total_fees") or 0) / 100
+    settlement.deductions = int(data.get("total_processed") or 0) / 100
+    settlement.net = int(data.get("settlement_amount") or 0) / 100
+    settlement.settlement_date = (data.get("settled_at") or "")[:10] or frappe.utils.today()
+    settlement.status = "Pending"
     settlement.insert(ignore_permissions=True)
     frappe.db.commit()
 
@@ -325,18 +306,21 @@ def _on_settlement_success(data: dict, gw) -> None:
 
 
 def _get_log(reference: str):
-    """Load a Payment Log by its name (= Paystack reference). Returns None if not found."""
+    """Load a Payment Log by its name. Returns None if not found."""
     try:
         return frappe.get_doc("Paystack Payment Log", reference)
     except frappe.DoesNotExistError:
         return None
 
 
+def _now_str() -> str:
+    """Return current datetime as string. Isolated so tests can patch it cheaply."""
+    from frappe.utils import now_datetime
+    return str(now_datetime())
+
+
 def _maybe_store_authorization(charge_data: dict, gw) -> None:
-    """
-    If the charge includes a reusable card authorisation, store it.
-    Runs inside a try/except so a storage failure never aborts the main flow.
-    """
+    """Store reusable card authorisation if present. Non-blocking."""
     try:
         auth: dict = charge_data.get("authorization") or {}
         if not (auth.get("reusable") and auth.get("channel") == "card"):
@@ -347,7 +331,6 @@ def _maybe_store_authorization(charge_data: dict, gw) -> None:
         if not code or not sig:
             return
 
-        # Idempotent — skip if already stored.
         if frappe.db.exists("Paystack Customer Authorization", {"signature": sig}):
             return
 
@@ -357,7 +340,7 @@ def _maybe_store_authorization(charge_data: dict, gw) -> None:
             {
                 "doctype": "Paystack Customer Authorization",
                 "gateway_setting": gw.name,
-                "customer": customer_email,  # Data field — app-agnostic identifier
+                "customer": customer_email,
                 "authorization_code": code,
                 "signature": sig,
                 "card_brand": (auth.get("brand") or "")[:64],
@@ -393,5 +376,5 @@ def _audit_reject(reason: str, ip: str) -> None:
             }
         ).insert(ignore_permissions=True)
         frappe.db.commit()
-    except Exception:  # noqa: BLE001 — audit logging must never abort the main flow
+    except Exception:  # noqa: BLE001
         frappe.logger("paystack").debug("Webhook audit log failed", exc_info=True)
