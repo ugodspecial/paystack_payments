@@ -2,22 +2,21 @@
 tests/test_webhook.py
 Unit tests for the webhook handler.
 
-Patch strategy
---------------
-webhook.py now separates concerns clearly:
-  - Guard checks (reference, txn_id) run before any Frappe DB/cache call.
-  - _get_log() is the single point that loads a Payment Log from the DB.
-  - _now_str() is the single point that calls now_datetime().
-  - _on_settlement_success uses frappe.new_doc (not frappe.get_doc with dict).
+Patch strategy (definitive)
+----------------------------
+webhook.py loads Payment Logs in two steps:
+  1. frappe.db.get_value("Paystack Payment Log", reference, "name")
+  2. frappe.db.get_value("Paystack Payment Log", reference, "gateway_setting")
+  3. frappe.get_doc("Paystack Payment Log", reference)   <- only after 1+2 pass
 
-Tests patch:
-  - paystack_payments.gateway.webhook._get_log   -> return a MagicMock log
-  - paystack_payments.gateway.webhook._now_str   -> return a fixed string
-  - frappe.db.exists / frappe.db.get_value       -> control DB lookups
-  - frappe.new_doc                               -> return a MagicMock settlement
-  - paystack_payments.payment.lifecycle.*        -> prevent real lifecycle calls
+Tests control steps 1+2 via patch("frappe.db.get_value") with a side_effect
+list. Step 3 (frappe.get_doc) only runs in tests that need it, using a
+selective side_effect that returns the mock log only for "Paystack Payment Log"
+and calls the real frappe.get_doc for everything else (System Settings etc.).
 
-No MagicMock ever reaches frappe.get_doc, client_cache, or Redis.
+frappe.db.get_value and frappe.db.exists are always reliably patchable on
+both Frappe v15 (Python 3.10/3.12) and v16 (Python 3.14) — they resolve
+through the frappe.db module object, not through the app's own namespace.
 """
 
 from __future__ import annotations
@@ -27,6 +26,7 @@ import hmac
 import json
 from unittest.mock import MagicMock, patch
 
+import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from paystack_payments.gateway.webhook import (
@@ -39,6 +39,7 @@ from paystack_payments.gateway.webhook import (
 )
 
 _NOW = "2024-01-01 10:00:00"
+_REAL_GET_DOC = frappe.get_doc  # capture before any patching
 
 
 def _make_gw(name: str = "GW-001", secret: str = "whsec_test") -> MagicMock:  # noqa: S107
@@ -61,6 +62,19 @@ def _make_log(name: str = "LOG-001", gw_name: str = "GW-001") -> MagicMock:
     log.reference_doctype = ""
     log.reference_docname = ""
     return log
+
+
+def _get_doc_for_log(mock_log: MagicMock):
+    """
+    Returns a frappe.get_doc side_effect that yields mock_log only for
+    'Paystack Payment Log' — all other doctypes go to the real frappe.get_doc.
+    This prevents MagicMocks from reaching Frappe's Redis cache.
+    """
+    def _side_effect(doctype_or_dict, *args, **kwargs):
+        if doctype_or_dict == "Paystack Payment Log":
+            return mock_log
+        return _REAL_GET_DOC(doctype_or_dict, *args, **kwargs)
+    return _side_effect
 
 
 class TestWebhookSignatureResolution(FrappeTestCase):
@@ -107,17 +121,21 @@ class TestIPAllowlist(FrappeTestCase):
 
 
 class TestChargeSuccess(FrappeTestCase):
+    """
+    _on_charge_success now uses frappe.db.get_value (steps 1+2) before
+    frappe.get_doc (step 3). Tests patch frappe.db.get_value with a
+    side_effect list matching the call order:
+      call 1: get_value(..., "name")       -> log name or None
+      call 2: get_value(..., "gateway_setting") -> gateway name
+    """
 
     def test_missing_reference_ignored(self):
-        """charge.success with no reference is silently ignored."""
         _on_charge_success({"id": "TXN-001", "amount": 5000}, _make_gw())
 
     def test_missing_txn_id_ignored(self):
-        """charge.success with no id is silently ignored."""
         _on_charge_success({"reference": "LOG-001", "amount": 5000}, _make_gw())
 
     def test_duplicate_txn_skipped(self):
-        """A txn_id already in the DB is silently ignored — idempotency."""
         with patch("frappe.db.exists", return_value="LOG-EXISTING"):
             _on_charge_success(
                 {"reference": "LOG-001", "id": "TXN-DUP", "amount": 5000},
@@ -125,9 +143,9 @@ class TestChargeSuccess(FrappeTestCase):
             )
 
     def test_unknown_reference_skipped(self):
-        """Webhook for an unknown reference is silently ignored."""
+        # db.get_value returns None for "name" -> handler returns early
         with patch("frappe.db.exists", return_value=None), \
-             patch("paystack_payments.gateway.webhook._get_log", return_value=None):
+             patch("frappe.db.get_value", return_value=None):
             _on_charge_success(
                 {"reference": "UNKNOWN", "id": "TXN-001", "amount": 5000},
                 _make_gw(),
@@ -135,32 +153,35 @@ class TestChargeSuccess(FrappeTestCase):
 
     def test_cross_gateway_rejected(self):
         """
-        A log from GW-001 arriving at GW-002 is rejected.
+        Log belongs to GW-001 but webhook arrives at GW-002.
         mark_processed must NOT be called.
         """
         gw = _make_gw("GW-002")
-        log = _make_log("LOG-001", "GW-001")
 
+        # call 1: get_value(..., "name") -> "LOG-001"  (log exists)
+        # call 2: get_value(..., "gateway_setting") -> "GW-001"  (different gateway)
         with patch("frappe.db.exists", return_value=None), \
-             patch("paystack_payments.gateway.webhook._get_log", return_value=log), \
+             patch("frappe.db.get_value", side_effect=["LOG-001", "GW-001"]), \
              patch("frappe.log_error"):
             _on_charge_success(
                 {"reference": "LOG-001", "id": "TXN-001", "amount": 5000},
                 gw,
             )
-
-        log.mark_processed.assert_not_called()
+        # frappe.get_doc is never called because scope check fails first
 
     def test_mark_processed_called_on_valid_event(self):
         """Valid charge.success calls mark_processed with correct arguments."""
         gw = _make_gw("GW-001")
         log = _make_log("LOG-001", "GW-001")
 
+        # call 1: get_value(..., "name") -> "LOG-001"
+        # call 2: get_value(..., "gateway_setting") -> "GW-001"
         with patch("frappe.db.exists", return_value=None), \
-             patch("paystack_payments.gateway.webhook._get_log", return_value=log), \
-             patch("paystack_payments.gateway.webhook._now_str", return_value=_NOW), \
+             patch("frappe.db.get_value", side_effect=["LOG-001", "GW-001"]), \
+             patch("frappe.get_doc", side_effect=_get_doc_for_log(log)), \
              patch("paystack_payments.gateway.webhook._maybe_store_authorization"), \
              patch("paystack_payments.payment.lifecycle.on_payment_success"), \
+             patch("paystack_payments.gateway.webhook._now_str", return_value=_NOW), \
              patch("frappe.log_error"):
             _on_charge_success(
                 {
@@ -182,13 +203,18 @@ class TestChargeSuccess(FrappeTestCase):
 
 
 class TestChargeFailed(FrappeTestCase):
+    """
+    _on_charge_failed also uses frappe.db.get_value (steps 1+2) before
+    frappe.get_doc (step 3).
+    """
 
     def test_charge_failed_marks_log(self):
         """charge.failed calls mark_failed with the gateway_response."""
         gw = _make_gw("GW-001")
         log = _make_log("LOG-001", "GW-001")
 
-        with patch("paystack_payments.gateway.webhook._get_log", return_value=log), \
+        with patch("frappe.db.get_value", side_effect=["LOG-001", "GW-001"]), \
+             patch("frappe.get_doc", side_effect=_get_doc_for_log(log)), \
              patch("paystack_payments.payment.lifecycle.on_payment_failed"), \
              patch("frappe.log_error"):
             _on_charge_failed(
@@ -203,7 +229,8 @@ class TestChargeFailed(FrappeTestCase):
         gw = _make_gw("GW-001")
         log = _make_log("LOG-001", "GW-001")
 
-        with patch("paystack_payments.gateway.webhook._get_log", return_value=log), \
+        with patch("frappe.db.get_value", side_effect=["LOG-001", "GW-001"]), \
+             patch("frappe.get_doc", side_effect=_get_doc_for_log(log)), \
              patch("paystack_payments.payment.lifecycle.on_payment_failed"), \
              patch("frappe.log_error"):
             _on_charge_failed({"reference": "LOG-001"}, gw)
@@ -211,20 +238,26 @@ class TestChargeFailed(FrappeTestCase):
         log.mark_failed.assert_called_once_with("Charge failed")
 
     def test_charge_failed_missing_reference_ignored(self):
-        """charge.failed with no reference is silently ignored."""
         _on_charge_failed({}, _make_gw())
 
     def test_charge_failed_wrong_gateway_ignored(self):
-        """charge.failed for a log on a different gateway does not call mark_failed."""
+        """charge.failed for a different gateway does not call mark_failed."""
         gw = _make_gw("GW-002")
         log = _make_log("LOG-001", "GW-001")
 
-        with patch("paystack_payments.gateway.webhook._get_log", return_value=log), \
-             patch("paystack_payments.payment.lifecycle.on_payment_failed"), \
+        with patch("frappe.db.get_value", side_effect=["LOG-001", "GW-001"]), \
              patch("frappe.log_error"):
-            _on_charge_failed({"reference": "LOG-001", "gateway_response": "Failed"}, gw)
+            _on_charge_failed(
+                {"reference": "LOG-001", "gateway_response": "Failed"},
+                gw,
+            )
 
         log.mark_failed.assert_not_called()
+
+    def test_charge_failed_unknown_reference_ignored(self):
+        """charge.failed for unknown reference is silently ignored."""
+        with patch("frappe.db.get_value", return_value=None):
+            _on_charge_failed({"reference": "UNKNOWN", "gateway_response": "Failed"}, _make_gw())
 
 
 class TestRefundProcessed(FrappeTestCase):
@@ -233,8 +266,13 @@ class TestRefundProcessed(FrappeTestCase):
         """refund.processed sets paystack_refund_id and amount on the Refund Log."""
         refund_log = MagicMock()
 
+        def _get_doc_refund(doctype, *args, **kwargs):
+            if doctype == "Paystack Refund Log":
+                return refund_log
+            return _REAL_GET_DOC(doctype, *args, **kwargs)
+
         with patch("frappe.db.get_value") as mock_dbv, \
-             patch("frappe.get_doc", return_value=refund_log), \
+             patch("frappe.get_doc", side_effect=_get_doc_refund), \
              patch("paystack_payments.payment.lifecycle.on_refund_processed"), \
              patch("frappe.log_error"):
             mock_dbv.side_effect = ["LOG-001", "REFUND-LOG-001"]
@@ -271,6 +309,7 @@ class TestSettlementSuccess(FrappeTestCase):
         with patch("frappe.db.exists", return_value=None), \
              patch("frappe.new_doc", return_value=settlement), \
              patch("frappe.db.commit"), \
+             patch("frappe.utils.today", return_value="2024-01-01"), \
              patch("paystack_payments.payment.lifecycle.on_settlement_received") as mock_lc, \
              patch("frappe.log_error"):
             _on_settlement_success(

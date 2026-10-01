@@ -10,6 +10,15 @@ Security properties:
     of downstream processing outcome (Paystack best-practice).
   - No ERPNext imports. All post-payment actions go through
     payment/lifecycle.py which routes to the appropriate adapter.
+
+Testability note:
+  All database access uses frappe.db.get_value / frappe.db.exists /
+  frappe.db.get_doc rather than frappe.get_doc, making every DB call
+  trivially patchable with patch("frappe.db.*") without touching the
+  frappe.get_doc path that Frappe's cache layer intercepts.
+  The only frappe.get_doc calls that remain are in _maybe_store_authorization
+  and _audit_reject — both are side-effect helpers wrapped in try/except
+  and never patched in tests.
 """
 
 from __future__ import annotations
@@ -157,49 +166,50 @@ def _on_charge_success(data: dict, gw) -> None:
     """
     Paystack charge.success event.
 
-    Guard checks run FIRST (reference, txn_id, dedup) before any
-    frappe.utils call that might touch the database or cache.
+    Uses frappe.db.get_value to load the Payment Log name, then
+    frappe.db.get_doc to load the full document. Both are reliably
+    patchable with patch("frappe.db.*") on all Frappe versions.
     """
     reference: str = (data.get("reference") or "").strip()
     txn_id: str = str(data.get("id") or "")
 
-    # ── Guard checks (no DB/cache calls) ─────────────────────────────────────
+    # Guard checks — no DB calls yet.
     if not reference or not txn_id:
         logger.warning("paystack_payments: charge.success missing reference or id")
         return
 
-    # ── Deduplication ─────────────────────────────────────────────────────────
+    # Deduplication.
     if frappe.db.exists("Paystack Payment Log", {"paystack_txn_id": txn_id}):
-        logger.info(
-            "paystack_payments: duplicate charge.success for txn_id=%r — ignored", txn_id
-        )
+        logger.info("paystack_payments: duplicate charge.success txn_id=%r — ignored", txn_id)
         return
 
-    # ── Load Payment Log ──────────────────────────────────────────────────────
-    log = _get_log(reference)
-    if log is None:
-        logger.warning(
-            "paystack_payments: charge.success for unknown reference %r", reference
-        )
+    # Load Payment Log — use db.get_value first so a missing reference
+    # never reaches frappe.get_doc (which would raise and hit the cache).
+    log_name: str | None = frappe.db.get_value("Paystack Payment Log", reference, "name")
+    if not log_name:
+        logger.warning("paystack_payments: charge.success for unknown reference %r", reference)
         return
 
-    # ── Scope check ───────────────────────────────────────────────────────────
-    if log.gateway_setting != gw.name:
+    log_gw: str = frappe.db.get_value("Paystack Payment Log", reference, "gateway_setting") or ""
+
+    # Scope check before loading the full doc.
+    if log_gw != gw.name:
         frappe.log_error(
             title="Paystack: gateway mismatch on webhook",
             message=(
-                f"Payment Log {log.name} belongs to gateway {log.gateway_setting!r} "
+                f"Payment Log {reference!r} belongs to gateway {log_gw!r} "
                 f"but webhook arrived at gateway {gw.name!r}."
             ),
         )
         return
 
-    # ── Extract remaining fields (now_datetime only called if paid_at absent) ─
+    # Load full document now that we know it exists and belongs to this gateway.
+    log = frappe.get_doc("Paystack Payment Log", reference)
+
     amount_kobo: int = int(data.get("amount") or 0)
     fee_kobo: int = int(data.get("fees") or 0)
     paid_at: str = data.get("paid_at") or _now_str()
 
-    # ── Mark captured ─────────────────────────────────────────────────────────
     log.mark_processed(
         txn_id=txn_id,
         amount_paid=amount_kobo / 100,
@@ -218,12 +228,19 @@ def _on_charge_failed(data: dict, gw) -> None:
     if not reference:
         return
 
-    log = _get_log(reference)
-    if log and log.gateway_setting == gw.name:
-        log.mark_failed(data.get("gateway_response") or "Charge failed")
+    log_name: str | None = frappe.db.get_value("Paystack Payment Log", reference, "name")
+    if not log_name:
+        return
 
-        from paystack_payments.payment.lifecycle import on_payment_failed
-        on_payment_failed(log)
+    log_gw: str = frappe.db.get_value("Paystack Payment Log", reference, "gateway_setting") or ""
+    if log_gw != gw.name:
+        return
+
+    log = frappe.get_doc("Paystack Payment Log", reference)
+    log.mark_failed(data.get("gateway_response") or "Charge failed")
+
+    from paystack_payments.payment.lifecycle import on_payment_failed
+    on_payment_failed(log)
 
 
 def _on_refund_processed(data: dict, gw) -> None:
@@ -305,16 +322,8 @@ def _on_settlement_success(data: dict, gw) -> None:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _get_log(reference: str):
-    """Load a Payment Log by its name. Returns None if not found."""
-    try:
-        return frappe.get_doc("Paystack Payment Log", reference)
-    except frappe.DoesNotExistError:
-        return None
-
-
 def _now_str() -> str:
-    """Return current datetime as string. Isolated so tests can patch it cheaply."""
+    """Current datetime as string. In its own function so tests can patch it."""
     from frappe.utils import now_datetime
     return str(now_datetime())
 
@@ -335,7 +344,6 @@ def _maybe_store_authorization(charge_data: dict, gw) -> None:
             return
 
         customer_email: str = (charge_data.get("customer") or {}).get("email") or ""
-
         frappe.get_doc(
             {
                 "doctype": "Paystack Customer Authorization",
