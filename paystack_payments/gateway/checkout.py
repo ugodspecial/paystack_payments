@@ -3,7 +3,7 @@ gateway/checkout.py
 Creates a Paystack Payment Log and initialises a transaction on Paystack.
 
 This module is intentionally generic — it knows nothing about Sales Invoices,
-Payment Requests, LMS Enrollments or any other business document.
+Payment Requests, LMS Enrollments, or any other business document.
 The caller supplies reference_doctype + reference_docname; this module
 stores them on the log and returns a checkout URL.
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 import frappe
 from frappe.utils import add_to_date, get_url, now_datetime
 
-from paystack_payments.gateway.client import get_client_for_gateway
+from paystack_payments.gateway.client import PaystackClient, get_client_for_gateway
 
 
 def create_payment(
@@ -31,39 +31,42 @@ def create_payment(
 ) -> str:
     """
     Create a Paystack Payment Log and initialise a Paystack transaction.
-
-    Returns the checkout URL the customer should be redirected to.
-
-    This function is the single entry point for ALL apps — LMS, School,
-    ERPNext, or any custom Frappe application. ERPNext-specific fields
-    (payment_request, company, etc.) are set by callers that need them,
-    not here.
+    Returns the checkout URL the customer should visit.
 
     Security:
     - amount is validated > 0.
-    - payer_email is validated as non-empty (Paystack requires it).
-    - reference_doctype/docname are stored as-is; permission checks are
-      the caller's responsibility.
-    - The Paystack reference is the auto-named Payment Log name (hash),
-      which is unguessable and not user-supplied.
+    - payer_email is validated and sanitised.
+    - The Paystack reference is the auto-named Payment Log name (a hash) —
+      unguessable and never user-supplied.
     """
     if amount <= 0:
         frappe.throw(frappe._("Payment amount must be greater than zero."))
 
-    if not payer_email:
-        frappe.throw(frappe._("Payer email is required to initialise a Paystack transaction."))
+    # Sanitise payer_email — fall back to a site-local placeholder so
+    # Paystack always gets a valid email.
+    payer_email = (payer_email or "").strip()
+    if not payer_email or payer_email == "Guest":
+        frappe.throw(
+            frappe._("A payer email is required to initiate a Paystack transaction.")
+        )
 
     gw = frappe.get_cached_doc("Paystack Gateway Setting", gateway_setting)
 
     if not gw.enabled:
-        frappe.throw(frappe._("Paystack gateway '{0}' is not enabled.").format(gateway_setting))
+        frappe.throw(
+            frappe._("Paystack gateway '{0}' is not enabled.").format(gateway_setting)
+        )
 
-    gw.validate_transaction_currency(currency)
+    # Currency check — only when a currency is explicitly supplied.
+    if currency:
+        gw.validate_transaction_currency(currency)
+    else:
+        currency = gw.currency
 
-    amount_kobo = _to_kobo(amount, currency)
+    amount_kobo = _to_smallest_unit(amount, currency)
 
     # Create the Payment Log first — its auto-generated name becomes the
-    # Paystack reference, ensuring it is cryptographically unguessable.
+    # Paystack reference, ensuring it is unguessable.
     log = frappe.get_doc(
         {
             "doctype": "Paystack Payment Log",
@@ -83,7 +86,7 @@ def create_payment(
 
     checkout_page_url = get_url(f"/paystack-checkout/{log.name}")
 
-    client = get_client_for_gateway(gateway_setting)
+    client: PaystackClient = get_client_for_gateway(gateway_setting)
 
     metadata: dict = {
         "payment_log": log.name,
@@ -105,35 +108,31 @@ def create_payment(
 
     tx_data = resp.get("data", {})
 
-    updates: dict = {"checkout_url": checkout_page_url}
-
+    # Determine the URL to return to the caller.
     if gw.checkout_mode == "Hosted":
-        updates["hosted_url"] = tx_data.get("authorization_url") or checkout_page_url
+        return_url = tx_data.get("authorization_url") or checkout_page_url
+        log.db_set("hosted_url", return_url, update_modified=False)
+    else:
+        return_url = checkout_page_url
 
-    if gw.payment_link_validity_hours:
-        updates["link_expires_at"] = add_to_date(
-            now_datetime(), hours=int(gw.payment_link_validity_hours)
+    log.db_set("checkout_url", checkout_page_url, update_modified=False)
+
+    # Set link expiry if configured.
+    validity_hours: int = gw.get("payment_link_validity_hours") or 0
+    if validity_hours:
+        log.db_set(
+            "link_expires_at",
+            add_to_date(now_datetime(), hours=validity_hours),
+            update_modified=False,
         )
 
-    for field, value in updates.items():
-        log.db_set(field, value, update_modified=False)
-
     frappe.db.commit()
+    return return_url
 
-    return updates.get("hosted_url", checkout_page_url)
 
-
-def _to_kobo(amount: float, currency: str) -> int:
+def _to_smallest_unit(amount: float, currency: str) -> int:
     """
-    Convert a human-readable amount to the smallest currency unit.
-
-    Paystack expects amounts in the lowest denomination:
-      NGN → kobo (x100)
-      USD → cents (x100)
-      GHS → pesewas (x100)
-      ZAR → cents (x100)
-      KES → cents (x100)
-
-    All Paystack-supported currencies use x100.
+    Convert a human-readable amount to Paystack's smallest currency unit.
+    All Paystack-supported currencies use *100 (kobo, cents, pesewas, etc.).
     """
     return round(amount * 100)

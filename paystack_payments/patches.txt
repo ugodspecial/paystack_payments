@@ -1,1 +1,2 @@
 # paystack_payments.patches.v1_0.example
+paystack_payments.patches.v1_0.fix_payment_gateway_registration
