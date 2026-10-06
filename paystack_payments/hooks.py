@@ -10,7 +10,7 @@ app_description = (
 app_email = "info@youngandcodeltd.com"
 app_license = "MIT"
 app_version = "1.0.0"
-app_icon = "octicon octicon-credit-card"
+app_icon = "💳"
 app_color = "#00c3f7"
 
 # ── Required apps ─────────────────────────────────────────────────────────────

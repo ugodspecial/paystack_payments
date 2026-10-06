@@ -4,22 +4,16 @@
   "module": "Paystack Integration",
   "label": "Paystack Dashboard",
   "title": "Paystack Dashboard",
-  "icon": "octicon octicon-credit-card",
-  "color": "#00c3f7",
+  "icon": "💳",
   "is_standard": 1,
   "hide_custom": 0,
-  "charts": [
-    {
-      "chart_name": "Paystack Daily Volume",
-      "label": "Daily Payment Volume"
-    }
-  ],
+  "charts": [],
   "shortcuts": [
     {
       "type": "DocType",
       "label": "Gateway Settings",
       "link_to": "Paystack Gateway Setting",
-      "icon": "setting"
+      "icon": "settings"
     },
     {
       "type": "DocType",
@@ -31,19 +25,19 @@
       "type": "DocType",
       "label": "Settlements",
       "link_to": "Paystack Settlement",
-      "icon": "bank"
+      "icon": "credit-card"
     },
     {
       "type": "DocType",
       "label": "Refund Logs",
       "link_to": "Paystack Refund Log",
-      "icon": "return"
+      "icon": "corner-up-left"
     },
     {
       "type": "Report",
       "label": "Activity",
       "link_to": "Paystack Activity",
-      "icon": "bar-chart"
+      "icon": "bar-chart-2"
     },
     {
       "type": "Report",
@@ -55,13 +49,13 @@
       "type": "Report",
       "label": "Unsettled",
       "link_to": "Paystack Unsettled Payments",
-      "icon": "alert"
+      "icon": "alert-triangle"
     },
     {
       "type": "Report",
       "label": "Settlements vs Ledger",
       "link_to": "Paystack Settlements vs Ledger",
-      "icon": "check"
+      "icon": "check-circle"
     }
   ],
   "links": [
@@ -76,12 +70,6 @@
       "link_type": "DocType",
       "link_to": "Paystack Gateway Setting",
       "onboard": 1
-    },
-    {
-      "label": "Mode of Payment",
-      "type": "Link",
-      "link_type": "DocType",
-      "link_to": "Mode of Payment"
     },
     {
       "label": "Transactions",
