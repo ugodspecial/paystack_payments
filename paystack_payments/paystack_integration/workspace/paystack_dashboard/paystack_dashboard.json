@@ -6,6 +6,7 @@
   "title": "Paystack Dashboard",
   "icon": "💳",
   "is_standard": 1,
+  "public": 1,
   "hide_custom": 0,
   "charts": [],
   "shortcuts": [
