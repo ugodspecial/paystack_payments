@@ -157,12 +157,22 @@ class PaystackGatewaySetting(Document):
         # ── Payment Gateway Account ───────────────────────────────────────────
         # LMS (and other apps) list available gateways by querying
         # Payment Gateway Account. Without this record, Paystack won't appear.
-        if not frappe.db.exists("Payment Gateway Account", gw_name):
+        if not frappe.db.exists("DocType", "Payment Gateway Account"):
+            self.db_set("payment_gateway", gw_name, update_modified=False)
+            frappe.db.commit()
+            return
+
+        account_name = frappe.db.get_value(
+            "Payment Gateway Account", {"payment_gateway": gw_name}, "name"
+        )
+        if not account_name:
             pga = frappe.new_doc("Payment Gateway Account")
             pga.is_default = 0
             pga.payment_gateway = gw_name
             pga.currency = self.currency
-            pga.payment_channel = "Email"
+            # Do not set payment_channel here. It is not part of every
+            # payments-app/LMS version and an invalid field makes the whole
+            # gateway registration fail before the gateway can be selected.
             # payment_account links to ERPNext Account doctype.
             # Leave blank on non-ERPNext sites — LMS does not require it.
             if self.get("suspense_account"):
@@ -172,7 +182,7 @@ class PaystackGatewaySetting(Document):
             updates: dict = {"currency": self.currency}
             if self.get("suspense_account"):
                 updates["payment_account"] = self.suspense_account
-            frappe.db.set_value("Payment Gateway Account", gw_name, updates)
+            frappe.db.set_value("Payment Gateway Account", account_name, updates)
 
         self.db_set("payment_gateway", gw_name, update_modified=False)
         frappe.db.commit()
