@@ -13,6 +13,18 @@ app_version = "1.0.0"
 app_icon = "💳"
 app_color = "#00c3f7"
 
+# Frappe v16's Apps screen uses this hook to register an app card. Without it,
+# the app can be installed and its workspaces can exist while the app is absent
+# from the Apps screen/dock.
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": "/assets/paystack_payments/images/paystack_payments.svg",
+        "title": app_title,
+        "route": "/app/paystack-dashboard",
+    }
+]
+
 # ── Required apps ─────────────────────────────────────────────────────────────
 # payments is the only non-frappe requirement.
 # erpnext is deliberately NOT listed here.
