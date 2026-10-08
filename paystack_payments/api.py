@@ -211,9 +211,23 @@ def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
         log.mark_failed(data.get("gateway_response") or "Paystack transaction was not successful.")
         return {"status": "Failed"}
 
-    amount_paid = int(data.get("amount") or 0) / 100
-    if abs(amount_paid - float(log.amount or 0)) > 0.01:
-        frappe.throw(_("Paystack amount does not match the payment amount."))
+    raw_amount = int(data.get("amount") or 0)
+    amount_paid = raw_amount / 100
+    local_amount = float(log.amount or 0)
+    # Payment Request/LMS versions differ: some pass major currency units,
+    # while older payments integrations pass the smallest currency unit.
+    # Compare against both representations, but never accept an arbitrary
+    # amount from the browser.
+    if not (
+        abs(amount_paid - local_amount) <= 0.01
+        or abs(raw_amount - local_amount) <= 1
+    ):
+        frappe.throw(
+            _("Paystack amount does not match the payment amount. "
+              "Paystack: {0}, local: {1}.").format(amount_paid, local_amount)
+        )
+    if abs(raw_amount - local_amount) <= 1:
+        amount_paid = local_amount
 
     log.mark_processed(
         txn_id=str(data.get("id") or reference),
