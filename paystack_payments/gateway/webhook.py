@@ -212,7 +212,9 @@ def _on_charge_success(data: dict, gw) -> None:
 
     log.mark_processed(
         txn_id=txn_id,
-        amount_paid=amount_kobo / 100,
+        # Paystack amount can include the fee when the customer pays it.
+        # Store the merchant/LMS amount separately from the fee.
+        amount_paid=max(0, amount_kobo - fee_kobo) / 100,
         fee=fee_kobo / 100,
         payment_date=paid_at,
     )
