@@ -191,6 +191,41 @@ def complete_payment(log_name: str) -> str:
     return _("Payment completed. Log status: {0}.").format(log.reload().status)
 
 
+@frappe.whitelist(allow_guest=True)
+def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
+    """Verify a browser callback and finalize the payment immediately.
+
+    Paystack webhooks are authoritative, but the inline callback is needed
+    for LMS installations where webhook delivery is delayed or unavailable.
+    The operation is idempotent and still verifies the amount server-side.
+    """
+    log = frappe.get_doc("Paystack Payment Log", log_name)
+    if log.status in ("Processed", "Completed"):
+        return {"status": log.status, "reference": log.paystack_txn_id or transaction_reference}
+
+    from paystack_payments.gateway.client import get_client_for_gateway
+    client = get_client_for_gateway(log.gateway_setting)
+    reference = transaction_reference or log.name
+    data = client.verify_transaction(reference).get("data", {})
+    if data.get("status") != "success":
+        log.mark_failed(data.get("gateway_response") or "Paystack transaction was not successful.")
+        return {"status": "Failed"}
+
+    amount_paid = int(data.get("amount") or 0) / 100
+    if abs(amount_paid - float(log.amount or 0)) > 0.01:
+        frappe.throw(_("Paystack amount does not match the payment amount."))
+
+    log.mark_processed(
+        txn_id=str(data.get("id") or reference),
+        amount_paid=amount_paid,
+        fee=int(data.get("fees") or 0) / 100,
+        payment_date=data.get("paid_at") or now_datetime(),
+    )
+    from paystack_payments.payment.lifecycle import on_payment_success
+    on_payment_success(log)
+    return {"status": log.reload().status, "reference": log.paystack_txn_id}
+
+
 @frappe.whitelist()
 def verify_transaction(log_name: str) -> dict:
     """Return raw Paystack transaction data for a Payment Log."""

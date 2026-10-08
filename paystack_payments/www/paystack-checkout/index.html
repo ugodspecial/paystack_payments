@@ -85,12 +85,30 @@
             btn.textContent = "{{ _('Pay Now') }}";
           },
           callback: function (response) {
-            // Verify server-side via the webhook (already handled),
-            // but show the success banner immediately.
-            successBanner.classList.remove("d-none");
-            errorBanner.classList.add("d-none");
-            btn.disabled = true;
-            btn.textContent = "{{ _('Paid') }}";
+            // Webhooks can be delayed or unavailable in LMS installations.
+            // Confirm the callback server-side before showing success.
+            frappe.call({
+              method: "paystack_payments.api.confirm_payment",
+              args: { log_name: "{{ log_name }}", transaction_reference: response.reference },
+              callback: function (r) {
+                if (r.message && ["Processed", "Completed"].includes(r.message.status)) {
+                  successBanner.classList.remove("d-none");
+                  errorBanner.classList.add("d-none");
+                  btn.disabled = true;
+                  btn.textContent = "{{ _('Paid') }}";
+                  setTimeout(function () { window.location.reload(); }, 1200);
+                } else {
+                  errorBanner.classList.remove("d-none");
+                  btn.disabled = false;
+                  btn.textContent = "{{ _('Pay Now') }}";
+                }
+              },
+              error: function () {
+                errorBanner.classList.remove("d-none");
+                btn.disabled = false;
+                btn.textContent = "{{ _('Pay Now') }}";
+              }
+            });
           }
         });
         handler.openIframe();
