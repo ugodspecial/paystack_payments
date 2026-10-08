@@ -42,10 +42,10 @@
     },
     {
       "fieldname": "company",
-      "fieldtype": "Link",
+      "fieldtype": "Data",
       "label": "Company",
-      "options": "Company",
-      "reqd": 1
+      "reqd": 0,
+      "description": "Optional; used only when ERPNext is installed."
     },
     {
       "fieldname": "currency",
