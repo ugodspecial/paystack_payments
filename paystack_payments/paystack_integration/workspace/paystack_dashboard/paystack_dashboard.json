@@ -158,5 +158,28 @@
       "link_type": "Report",
       "link_to": "Paystack Settlements vs Ledger"
     }
+  ],
+  "content": [
+    {
+      "type": "header",
+      "data": {
+        "text": "Payment analytics",
+        "col": 12
+      }
+    },
+    {
+      "type": "chart",
+      "data": {
+        "chart_name": "Paystack Activity Chart",
+        "col": 6
+      }
+    },
+    {
+      "type": "chart",
+      "data": {
+        "chart_name": "Paystack Transactions Chart",
+        "col": 6
+      }
+    }
   ]
 }
