@@ -212,7 +212,12 @@ def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
         return {"status": "Failed"}
 
     raw_amount = int(data.get("amount") or 0)
-    amount_paid = raw_amount / 100
+    raw_fee = int(data.get("fees") or 0)
+    gross_amount = raw_amount / 100
+    fee_amount = raw_fee / 100
+    # When the customer pays Paystack fees, Paystack's amount is gross
+    # (merchant amount + fee). The LMS amount is the merchant amount.
+    amount_paid = gross_amount - fee_amount
     local_amount = float(log.amount or 0)
     # Payment Request/LMS versions differ: some pass major currency units,
     # while older payments integrations pass the smallest currency unit.
@@ -220,13 +225,14 @@ def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
     # amount from the browser.
     if not (
         abs(amount_paid - local_amount) <= 0.01
+        or abs(gross_amount - local_amount) <= 0.01
         or abs(raw_amount - local_amount) <= 1
     ):
         frappe.throw(
             _("Paystack amount does not match the payment amount. "
               "Paystack: {0}, local: {1}.").format(amount_paid, local_amount)
         )
-    if abs(raw_amount - local_amount) <= 1:
+    if abs(gross_amount - local_amount) <= 0.01 or abs(raw_amount - local_amount) <= 1:
         amount_paid = local_amount
 
     log.mark_processed(
