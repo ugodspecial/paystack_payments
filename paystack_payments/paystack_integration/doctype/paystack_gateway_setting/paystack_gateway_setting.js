@@ -41,13 +41,4 @@ frappe.ui.form.on("Paystack Gateway Setting", {
         }
     },
 
-    company(frm) {
-        if (frm.doc.company) {
-            frappe.db.get_value("Company", frm.doc.company, "default_currency", (r) => {
-                if (r && r.default_currency) {
-                    frm.set_value("currency", r.default_currency);
-                }
-            });
-        }
-    }
 });

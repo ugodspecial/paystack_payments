@@ -40,9 +40,8 @@
     },
     {
       "fieldname": "company",
-      "fieldtype": "Link",
-      "label": "Company",
-      "options": "Company",
+      "fieldtype": "Data",
+      "label": "Company", 
       "reqd": 0,
       "in_list_view": 1,
       "description": "Required only for ERPNext sites."
@@ -105,17 +104,15 @@
     },
     {
       "fieldname": "suspense_account",
-      "fieldtype": "Link",
+      "fieldtype": "Data",
       "label": "Suspense Account",
-      "options": "Account",
       "reqd": 0,
       "description": "Every capture is booked here at the gross amount"
     },
     {
       "fieldname": "mode_of_payment",
-      "fieldtype": "Link",
+      "fieldtype": "Data",
       "label": "Mode of Payment",
-      "options": "Mode of Payment",
       "reqd": 0
     },
     {
@@ -124,16 +121,14 @@
     },
     {
       "fieldname": "settlement_bank_account",
-      "fieldtype": "Link",
+      "fieldtype": "Data",
       "label": "Settlement Bank Account",
-      "options": "Account",
       "description": "Required to book payout Journal Entries"
     },
     {
       "fieldname": "paystack_fee_account",
-      "fieldtype": "Link",
-      "label": "Paystack Fee Account",
-      "options": "Account"
+      "fieldtype": "Data",
+      "label": "Paystack Fee Account"
     },
     {
       "fieldname": "section_automation",
