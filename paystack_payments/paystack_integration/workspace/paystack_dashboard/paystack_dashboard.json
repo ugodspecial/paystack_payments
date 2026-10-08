@@ -8,7 +8,16 @@
   "is_standard": 1,
   "public": 1,
   "hide_custom": 0,
-  "charts": [],
+  "charts": [
+    {
+      "chart_name": "Paystack Activity Chart",
+      "label": "Payment Activity"
+    },
+    {
+      "chart_name": "Paystack Transactions Chart",
+      "label": "Transactions"
+    }
+  ],
   "shortcuts": [
     {
       "type": "DocType",

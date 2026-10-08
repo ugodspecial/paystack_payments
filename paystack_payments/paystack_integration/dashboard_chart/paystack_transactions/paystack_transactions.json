@@ -1,0 +1,10 @@
+{
+  "name": "Paystack Transactions Chart",
+  "doctype": "Dashboard Chart",
+  "chart_name": "Paystack Transactions Chart",
+  "module": "Paystack Integration",
+  "chart_type": "Report",
+  "report_name": "Paystack Transactions",
+  "report_type": "Script Report",
+  "is_standard": 1
+}
