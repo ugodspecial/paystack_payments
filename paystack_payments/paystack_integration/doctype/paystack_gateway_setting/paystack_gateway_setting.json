@@ -41,7 +41,7 @@
     {
       "fieldname": "company",
       "fieldtype": "Data",
-      "label": "Company", 
+      "label": "Company",
       "reqd": 0,
       "in_list_view": 1,
       "description": "Required only for ERPNext sites."
@@ -99,7 +99,7 @@
     {
       "fieldname": "section_accounts",
       "fieldtype": "Section Break",
-      "label": "ERPNext Accounting (optional \u2014 requires ERPNext)",
+      "label": "ERPNext Accounting (optional — requires ERPNext)",
       "description": "These fields are only needed when ERPNext is installed. Leave blank for non-ERPNext Frappe installations."
     },
     {
