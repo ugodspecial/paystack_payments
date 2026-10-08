@@ -93,7 +93,7 @@
       "options": "DocType"
     },
     {
-      "fieldname": "reference_name",
+      "fieldname": "reference_docname",
       "fieldtype": "Dynamic Link",
       "label": "Reference Name",
       "options": "reference_doctype"
