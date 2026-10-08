@@ -190,6 +190,11 @@ class PaystackGatewaySetting(Document):
     def _deregister_payment_gateway(self) -> None:
         gw_name = self._gateway_name()
         for dt in ("Payment Gateway Account", "Payment Gateway"):
+            # Payment Gateway Account is optional in Frappe + LMS installs;
+            # do not fail while saving a disabled setting if the DocType is
+            # not provided by the installed payments version.
+            if not frappe.db.exists("DocType", dt):
+                continue
             if frappe.db.exists(dt, gw_name):
                 frappe.delete_doc(dt, gw_name, ignore_permissions=True, force=True)
         self.db_set("payment_gateway", None, update_modified=False)
