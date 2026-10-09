@@ -15,7 +15,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, get_datetime, now_datetime
 
 # Maximum number of automated retries before flagging for human review.
 _MAX_RETRIES = 12
@@ -59,7 +59,9 @@ class PaystackPaymentLog(Document):
         self.db_set("paystack_txn_id", txn_id)
         self.db_set("amount_paid", amount_paid)
         self.db_set("paystack_fee", fee)
-        self.db_set("payment_date", payment_date)
+        # Paystack returns ISO-8601 timestamps (for example, with a
+        # trailing Z). MariaDB expects a Frappe-compatible datetime.
+        self.db_set("payment_date", get_datetime(payment_date))
         self.db_set("status", "Processed")
         frappe.db.commit()
 
