@@ -95,7 +95,11 @@
                   errorBanner.classList.add("d-none");
                   btn.disabled = true;
                   btn.textContent = "{{ _('Paid') }}";
-                  setTimeout(function () { window.location.reload(); }, 1200);
+                  if (r.message.redirect) {
+                    window.location.href = r.message.redirect;
+                  } else {
+                    setTimeout(function () { window.location.reload(); }, 1200);
+                  }
                 } else {
                   errorBanner.classList.remove("d-none");
                   btn.disabled = false;

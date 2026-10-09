@@ -78,6 +78,7 @@ def create_payment(
             "description": description,
             "reference_doctype": reference_doctype,
             "reference_docname": reference_docname,
+            "success_callback": success_redirect_url,
             "status": "Pending",
         }
     )

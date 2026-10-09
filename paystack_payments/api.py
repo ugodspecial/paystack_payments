@@ -201,7 +201,8 @@ def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
     """
     log = frappe.get_doc("Paystack Payment Log", log_name)
     if log.status in ("Processed", "Completed"):
-        return {"status": log.status, "reference": log.paystack_txn_id or transaction_reference}
+        return {"status": log.status, "reference": log.paystack_txn_id or transaction_reference,
+                "redirect": log.success_callback or ""}
 
     from paystack_payments.gateway.client import get_client_for_gateway
     client = get_client_for_gateway(log.gateway_setting)
@@ -243,7 +244,9 @@ def confirm_payment(log_name: str, transaction_reference: str = "") -> dict:
     )
     from paystack_payments.payment.lifecycle import on_payment_success
     on_payment_success(log)
-    return {"status": log.reload().status, "reference": log.paystack_txn_id}
+    log.reload()
+    return {"status": log.status, "reference": log.paystack_txn_id,
+            "redirect": log.success_callback or ""}
 
 
 @frappe.whitelist()
