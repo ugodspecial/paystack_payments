@@ -135,7 +135,7 @@ def _sync_lms_payment(log) -> None:
     """Update the native LMS Payment row when one is the payment reference."""
     if not log.reference_docname:
         return
-    if log.reference_doctype not in ("LMS Payment", "LMS Enrollment"):
+    if log.reference_doctype not in ("LMS Payment", "LMS Enrollment", "LMS Course"):
         return
     try:
         meta = frappe.get_meta("LMS Payment")
@@ -173,9 +173,31 @@ def _sync_lms_payment(log) -> None:
             for fieldname, value in values.items():
                 setattr(payment_doc, fieldname, value)
             payment_doc.save(ignore_permissions=True)
+            _ensure_lms_enrollment(payment_doc)
             frappe.db.commit()
     except Exception:  # noqa: BLE001
         frappe.log_error(title="Paystack: LMS payment sync failed", message=frappe.get_traceback())
+
+
+def _ensure_lms_enrollment(payment_doc) -> None:
+    """Create the learner's course enrollment after LMS payment is received."""
+    if payment_doc.payment_for_document_type != "LMS Course":
+        return
+    course = payment_doc.payment_for_document
+    member = payment_doc.member
+    if not course or not member or frappe.db.exists(
+        "LMS Enrollment", {"course": course, "member": member}
+    ):
+        return
+    enrollment = frappe.get_doc(
+        {
+            "doctype": "LMS Enrollment",
+            "course": course,
+            "member": member,
+            "member_type": "Student",
+        }
+    )
+    enrollment.insert(ignore_permissions=True)
 
 
 # ── Internal notification engine ──────────────────────────────────────────────
