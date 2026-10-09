@@ -65,6 +65,8 @@ def on_payment_success(log) -> None:
         event="on_payment_success",
         erpnext_handler="paystack_payments.integrations.erpnext.on_payment_success",
     )
+    _sync_lms_payment(log)
+    log.mark_completed()
 
 
 def on_payment_failed(log) -> None:
@@ -124,6 +126,40 @@ def on_settlement_received(settlement) -> None:
             "paystack_payments.integrations.erpnext.on_settlement_received",
             settlement,
         )
+
+
+# ── LMS synchronization ───────────────────────────────────────────────────────
+
+
+def _sync_lms_payment(log) -> None:
+    """Update the native LMS Payment row when one is the payment reference."""
+    if not log.reference_docname:
+        return
+    if log.reference_doctype not in ("LMS Payment", "LMS Enrollment"):
+        return
+    try:
+        if log.reference_doctype == "LMS Enrollment":
+            payment_name = frappe.db.get_value(
+                "LMS Payment", {"reference_name": log.reference_docname}, "name"
+            )
+            if not payment_name:
+                payment_name = frappe.db.get_value(
+                    "LMS Payment", {"payment_reference": log.reference_docname}, "name"
+                )
+        else:
+            payment_name = log.reference_docname
+        if not payment_name:
+            return
+        meta = frappe.get_meta("LMS Payment")
+        values = {}
+        if meta.has_field("payment_received"): values["payment_received"] = 1
+        if meta.has_field("payment_id"): values["payment_id"] = log.paystack_txn_id
+        if meta.has_field("status"): values["status"] = "Paid"
+        if values:
+            frappe.db.set_value("LMS Payment", payment_name, values, update_modified=False)
+            frappe.db.commit()
+    except Exception:  # noqa: BLE001
+        frappe.log_error(title="Paystack: LMS payment sync failed", message=frappe.get_traceback())
 
 
 # ── Internal notification engine ──────────────────────────────────────────────
