@@ -135,7 +135,7 @@ def _sync_lms_payment(log) -> None:
     """Update the native LMS Payment row when one is the payment reference."""
     if not log.reference_docname:
         return
-    if log.reference_doctype not in ("LMS Payment", "LMS Enrollment"):
+    if log.reference_doctype not in ("LMS Payment", "LMS Enrollment", "LMS Course"):
         return
     try:
         meta = frappe.get_meta("LMS Payment")
