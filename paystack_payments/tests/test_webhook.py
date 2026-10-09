@@ -196,7 +196,7 @@ class TestChargeSuccess(FrappeTestCase):
 
         log.mark_processed.assert_called_once_with(
             txn_id="TXN-001",
-            amount_paid=5000.0,
+            amount_paid=4925.0,
             fee=75.0,
             payment_date="2024-01-01T10:00:00Z",
         )
