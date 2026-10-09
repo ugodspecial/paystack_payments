@@ -144,15 +144,17 @@ def _sync_lms_payment(log) -> None:
         if log.reference_doctype == "LMS Payment":
             payment_name = log.reference_docname
         else:
+            payment_filters = {
+                "payment_for_document_type": log.reference_doctype,
+                "payment_for_document": log.reference_docname,
+                "payment_received": 0,
+            }
+            # Never credit an arbitrary unpaid payment for the same course.
+            # The gateway log must identify the same LMS member.
+            if log.payer_email:
+                payment_filters["member"] = log.payer_email
             payment_name = frappe.db.get_value(
-                "LMS Payment",
-                {
-                    "payment_for_document_type": log.reference_doctype,
-                    "payment_for_document": log.reference_docname,
-                    "payment_received": 0,
-                },
-                "name",
-                order_by="creation desc",
+                "LMS Payment", payment_filters, "name", order_by="creation desc"
             )
         if not payment_name:
             return
