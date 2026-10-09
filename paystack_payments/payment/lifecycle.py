@@ -152,9 +152,12 @@ def _sync_lms_payment(log) -> None:
             return
         meta = frappe.get_meta("LMS Payment")
         values = {}
-        if meta.has_field("payment_received"): values["payment_received"] = 1
-        if meta.has_field("payment_id"): values["payment_id"] = log.paystack_txn_id
-        if meta.has_field("status"): values["status"] = "Paid"
+        if meta.has_field("payment_received"):
+            values["payment_received"] = 1
+        if meta.has_field("payment_id"):
+            values["payment_id"] = log.paystack_txn_id
+        if meta.has_field("status"):
+            values["status"] = "Paid"
         if values:
             frappe.db.set_value("LMS Payment", payment_name, values, update_modified=False)
             frappe.db.commit()
