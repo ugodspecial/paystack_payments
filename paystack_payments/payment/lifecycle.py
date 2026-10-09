@@ -166,7 +166,13 @@ def _sync_lms_payment(log) -> None:
         if meta.has_field("status"):
             values["status"] = "Paid"
         if values:
-            frappe.db.set_value("LMS Payment", payment_name, values, update_modified=False)
+            # Use the LMS document lifecycle rather than db_set. LMS creates
+            # the enrollment/course access in its on_update/on_payment logic;
+            # a direct SQL update changes the checkbox but bypasses that logic.
+            payment_doc = frappe.get_doc("LMS Payment", payment_name)
+            for fieldname, value in values.items():
+                setattr(payment_doc, fieldname, value)
+            payment_doc.save(ignore_permissions=True)
             frappe.db.commit()
     except Exception:  # noqa: BLE001
         frappe.log_error(title="Paystack: LMS payment sync failed", message=frappe.get_traceback())
