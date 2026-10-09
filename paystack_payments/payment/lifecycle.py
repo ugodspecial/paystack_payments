@@ -138,24 +138,31 @@ def _sync_lms_payment(log) -> None:
     if log.reference_doctype not in ("LMS Payment", "LMS Enrollment"):
         return
     try:
-        if log.reference_doctype == "LMS Enrollment":
-            payment_name = frappe.db.get_value(
-                "LMS Payment", {"reference_name": log.reference_docname}, "name"
-            )
-            if not payment_name:
-                payment_name = frappe.db.get_value(
-                    "LMS Payment", {"payment_reference": log.reference_docname}, "name"
-                )
-        else:
+        meta = frappe.get_meta("LMS Payment")
+        # LMS creates a payment row for the course, while the gateway
+        # reference points to that course (not to the LMS Payment name).
+        if log.reference_doctype == "LMS Payment":
             payment_name = log.reference_docname
+        else:
+            payment_name = frappe.db.get_value(
+                "LMS Payment",
+                {
+                    "payment_for_document_type": log.reference_doctype,
+                    "payment_for_document": log.reference_docname,
+                    "payment_received": 0,
+                },
+                "name",
+                order_by="creation desc",
+            )
         if not payment_name:
             return
-        meta = frappe.get_meta("LMS Payment")
         values = {}
         if meta.has_field("payment_received"):
             values["payment_received"] = 1
         if meta.has_field("payment_id"):
             values["payment_id"] = log.paystack_txn_id
+        if meta.has_field("order_id"):
+            values["order_id"] = log.name
         if meta.has_field("status"):
             values["status"] = "Paid"
         if values:
