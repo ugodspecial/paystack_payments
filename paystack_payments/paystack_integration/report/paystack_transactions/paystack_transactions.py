@@ -8,7 +8,24 @@ from frappe import _
 
 def execute(filters=None):
     filters = filters or {}
-    return get_columns(), get_data(filters)
+    data = get_data(filters)
+    return get_columns(), data, None, get_chart(data)
+
+
+def get_chart(data):
+    if not data:
+        return None
+    statuses = {}
+    for row in data:
+        statuses[row.status] = statuses.get(row.status, 0) + 1
+    return {
+        "data": {
+            "labels": list(statuses),
+            "datasets": [{"name": _("Transactions"), "values": list(statuses.values())}],
+        },
+        "type": "donut",
+        "colors": ["#00c3f7", "#28a745", "#dc3545", "#ffc107"],
+    }
 
 
 def get_columns():
