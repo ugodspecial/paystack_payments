@@ -4,6 +4,7 @@
   "chart_name": "Paystack Activity Chart",
   "module": "Paystack Integration",
   "chart_type": "Report",
+  "type": "Bar",
   "report_name": "Paystack Activity",
   "use_report_chart": 1,
   "filters_json": "{}",

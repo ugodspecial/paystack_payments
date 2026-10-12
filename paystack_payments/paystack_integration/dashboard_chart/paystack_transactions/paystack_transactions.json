@@ -4,6 +4,7 @@
   "chart_name": "Paystack Transactions Chart",
   "module": "Paystack Integration",
   "chart_type": "Report",
+  "type": "Donut",
   "report_name": "Paystack Transactions",
   "use_report_chart": 1,
   "filters_json": "{}",
