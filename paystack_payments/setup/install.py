@@ -17,7 +17,42 @@ import frappe
 
 def after_install() -> None:
     _create_mode_of_payment_if_erpnext()
+    _ensure_dashboard_charts()
     _reregister_all_enabled_gateways()
+
+
+def _ensure_dashboard_charts() -> None:
+    """Create native Frappe charts used by the Paystack workspace."""
+    charts = [
+        {
+            "name": "Paystack Activity Chart",
+            "chart_type": "Sum",
+            "document_type": "Paystack Payment Log",
+            "based_on": "payment_date",
+            "value_based_on": "amount_paid",
+            "timespan": "Last Month",
+            "time_interval": "Daily",
+            "timeseries": 1,
+            "type": "Line",
+            "filters_json": '[['"'"'Paystack Payment Log'"'"', '"'"'status'"'"', '"'"'in'"'"', ['"'"'Processed'"'"', '"'"'Completed'"'"', '"'"'Partially Refunded'"'"', '"'"'Refunded'"'"']]]',
+        },
+        {
+            "name": "Paystack Transactions Chart",
+            "chart_type": "Group By",
+            "document_type": "Paystack Payment Log",
+            "group_by_based_on": "status",
+            "group_by_type": "Count",
+            "type": "Donut",
+            "filters_json": "[]",
+        },
+    ]
+    for chart in charts:
+        values = {k: v for k, v in chart.items() if k != "name"}
+        values.update({"is_public": 1, "is_standard": 1, "module": "Paystack Integration"})
+        if frappe.db.exists("Dashboard Chart", chart["name"]):
+            frappe.db.set_value("Dashboard Chart", chart["name"], values)
+        else:
+            frappe.get_doc({"doctype": "Dashboard Chart", "chart_name": chart["name"], **values}).insert(ignore_permissions=True)
     frappe.db.commit()
     frappe.clear_cache()
 
