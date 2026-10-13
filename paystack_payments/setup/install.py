@@ -12,6 +12,8 @@ On ERPNext sites:
 
 from __future__ import annotations
 
+import json
+
 import frappe
 
 
@@ -34,7 +36,14 @@ def _ensure_dashboard_charts() -> None:
             "time_interval": "Daily",
             "timeseries": 1,
             "type": "Line",
-            "filters_json": '[['"'"'Paystack Payment Log'"'"', '"'"'status'"'"', '"'"'in'"'"', ['"'"'Processed'"'"', '"'"'Completed'"'"', '"'"'Partially Refunded'"'"', '"'"'Refunded'"'"']]]',
+            "filters_json": json.dumps(
+                [[
+                    "Paystack Payment Log",
+                    "status",
+                    "in",
+                    ["Processed", "Completed", "Partially Refunded", "Refunded"],
+                ]]
+            ),
         },
         {
             "name": "Paystack Transactions Chart",
@@ -52,7 +61,10 @@ def _ensure_dashboard_charts() -> None:
         if frappe.db.exists("Dashboard Chart", chart["name"]):
             frappe.db.set_value("Dashboard Chart", chart["name"], values)
         else:
-            frappe.get_doc({"doctype": "Dashboard Chart", "chart_name": chart["name"], **values}).insert(ignore_permissions=True)
+            doc = frappe.get_doc(
+                {"doctype": "Dashboard Chart", "chart_name": chart["name"], **values}
+            )
+            doc.insert(ignore_permissions=True)
     frappe.db.commit()
     frappe.clear_cache()
 
