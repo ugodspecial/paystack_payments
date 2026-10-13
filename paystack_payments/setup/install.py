@@ -57,7 +57,10 @@ def _ensure_dashboard_charts() -> None:
     ]
     for chart in charts:
         values = {k: v for k, v in chart.items() if k != "name"}
-        values.update({"is_public": 1, "is_standard": 1, "module": "Paystack Integration"})
+        # Dashboard Chart validation rejects edits to standard charts on
+        # installed sites. These are app-managed records, but deliberately
+        # site-owned so they can be created/updated on v15 and v16.
+        values.update({"is_public": 1, "is_standard": 0, "module": "Paystack Integration"})
         if frappe.db.exists("Dashboard Chart", chart["name"]):
             frappe.db.set_value("Dashboard Chart", chart["name"], values)
         else:
